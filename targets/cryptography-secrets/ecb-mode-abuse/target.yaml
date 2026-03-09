@@ -1,0 +1,135 @@
+name: "ECB Mode Block Manipulation"
+slug: "ecb-mode-abuse"
+version: "1.0.0"
+difficulty: "hard"
+description: >-
+  A web application using AES-ECB mode to encrypt user profile data.
+  Since ECB encrypts identical plaintext blocks to identical ciphertext
+  blocks, attackers can rearrange or swap blocks to manipulate the
+  encrypted data and escalate their role to admin.
+briefing: |
+  MISSION BRIEFING - OPERATION BLOCK SWAP
+  ==========================================
+
+  Agent, PixelVault Corp. runs a profile management system on port
+  8080 that encrypts user profile tokens using AES in ECB mode. This
+  is a critical cryptographic mistake -- ECB mode encrypts each 16-byte
+  block independently, meaning identical plaintext blocks produce
+  identical ciphertext blocks.
+
+  This means you can detect patterns in the ciphertext and manipulate
+  blocks to change your role from "user" to "admin" without knowing
+  the encryption key.
+
+  Your objectives:
+    1. Discover the encryption endpoint and token format
+    2. Identify ECB mode through duplicate block patterns
+    3. Manipulate encrypted blocks to change your role to admin
+    4. Access the admin panel with the manipulated token
+
+  Good luck, agent. ECB mode is a textbook vulnerability.
+
+author: "howl-team"
+cves:
+  - "CWE-327"
+tags:
+  - "ecb-mode"
+  - "block-cipher"
+  - "aes"
+  - "token-manipulation"
+  - "cryptography"
+  - "cryptanalysis"
+
+services:
+  - name: "webapp"
+    port: 8080
+    protocol: "tcp"
+    description: "PixelVault Profile Manager (Flask)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Discover the web application and its profile token system.
+      Identify the encryption and decryption endpoints.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "curl"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.vault/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan the target and register an account to receive an encrypted profile token."
+      - level: 2
+        text: "Endpoints include /api/profile/create, /api/profile/view, and /api/profile/info."
+      - level: 3
+        text: "The /api/profile/info endpoint describes the token format and encryption details."
+
+  - name: "ECB Detection"
+    description: >-
+      Confirm that AES-ECB mode is being used by creating inputs that
+      produce duplicate blocks in the ciphertext.
+    tools_suggested:
+      - "python"
+      - "curl"
+      - "cyberchef"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Create a profile with a username that causes repeated 16-byte blocks."
+      - level: 2
+        text: "Use a username of 16 identical characters (e.g., 'AAAAAAAAAAAAAAAA') and look for repeated blocks."
+      - level: 3
+        text: "In ECB mode, the ciphertext will contain repeated 32-char hex sequences for repeated plaintext blocks."
+
+  - name: "Block Manipulation"
+    description: >-
+      Craft a specially chosen username that places 'admin' in a
+      predictable block position, then rearrange the ciphertext blocks
+      to change the role field from 'user' to 'admin'.
+    tools_suggested:
+      - "python"
+      - "cyberchef"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/opt/pixelvault/crypto_flag.txt"
+    points: 250
+    hints:
+      - level: 1
+        text: "The token format is: {\"user\":\"USERNAME\",\"role\":\"user\"}. Figure out block alignment."
+      - level: 2
+        text: "Craft a username that aligns 'admin' into its own block, matching the role field."
+      - level: 3
+        text: "Use a username that places 'admin\",\"role\":\"' at a block boundary, then swap blocks."
+
+  - name: "Admin Access"
+    description: >-
+      Use the manipulated token to access the admin panel and
+      retrieve the root flag.
+    tools_suggested:
+      - "curl"
+      - "browser"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Set the profile_token cookie to your manipulated token."
+      - level: 2
+        text: "Access /admin with the token that decrypts to contain 'role':'admin'."
+      - level: 3
+        text: "The /api/profile/view endpoint confirms if your manipulated token is valid."
+
+par_time_minutes: 55
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

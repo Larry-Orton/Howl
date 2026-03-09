@@ -1,0 +1,112 @@
+name: "Exposed .env File"
+slug: "dotenv-exposure"
+version: "1.0.0"
+difficulty: "easy"
+description: >-
+  A startup SaaS dashboard that accidentally serves its .env file
+  containing admin credentials and API keys through the web server.
+  Access the exposed environment file, extract the credentials, and
+  use them to log in to the admin panel.
+briefing: |
+  MISSION BRIEFING - OPERATION DOTFILE
+  ======================================
+
+  Agent, CloudPulse Inc. is running a SaaS analytics dashboard on
+  port 8080. Our reconnaissance indicates the web server is
+  misconfigured and serves files from the application root directory,
+  including sensitive dotfiles.
+
+  The .env file likely contains database credentials, API keys, and
+  possibly admin account details. If you can access it, you should
+  be able to gain full admin access to the platform.
+
+  Your objectives:
+    1. Enumerate the target and scan for common sensitive files
+    2. Access the .env file and extract credentials
+    3. Use the credentials to access the admin panel and retrieve the flag
+
+  Good luck, agent. Dotfiles are a goldmine.
+
+author: "howl-team"
+cves:
+  - "CWE-538"
+tags:
+  - "dotenv"
+  - "information-disclosure"
+  - "sensitive-file-exposure"
+  - "credentials"
+  - "cryptography"
+  - "secrets-management"
+
+services:
+  - name: "webapp"
+    port: 8080
+    protocol: "tcp"
+    description: "CloudPulse Analytics Dashboard (Flask)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target for common sensitive files such as .env,
+      .git/config, .htaccess, and other dotfiles that may be
+      inadvertently served by the web server.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "dirb"
+      - "curl"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.backup/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan for common sensitive files using a dotfiles-focused wordlist."
+      - level: 2
+        text: "Try accessing /.env directly on port 8080."
+      - level: 3
+        text: "curl http://<target>:8080/.env will reveal environment variables."
+
+  - name: "Credential Extraction"
+    description: >-
+      Read the .env file to discover admin credentials, API keys,
+      and secret configuration values.
+    tools_suggested:
+      - "curl"
+      - "browser"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "The .env file contains several key-value pairs including admin credentials."
+      - level: 2
+        text: "Look for ADMIN_USERNAME and ADMIN_PASSWORD variables."
+      - level: 3
+        text: "The admin credentials are: ADMIN_USERNAME=cloudadmin, ADMIN_PASSWORD=Puls3_@dmin!2024."
+
+  - name: "Admin Panel Access"
+    description: >-
+      Use the extracted credentials to log in to the admin panel
+      and retrieve the final flag.
+    tools_suggested:
+      - "curl"
+      - "browser"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "There is an admin login endpoint on the application."
+      - level: 2
+        text: "Navigate to /admin and use the credentials from the .env file."
+      - level: 3
+        text: "Log in at /admin with cloudadmin:Puls3_@dmin!2024 to see the root flag."
+
+par_time_minutes: 20
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

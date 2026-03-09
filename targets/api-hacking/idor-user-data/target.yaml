@@ -1,0 +1,123 @@
+name: "IDOR User Data Exposure"
+slug: "idor-user-data"
+difficulty: "easy"
+description: >
+  A REST API with Insecure Direct Object Reference (IDOR) vulnerabilities.
+  User endpoints expose sensitive data without verifying that the requesting
+  user is authorized to access the specified resource, allowing horizontal
+  privilege escalation to access any user's data including admin credentials.
+briefing: |
+  MISSION BRIEFING - OPERATION OPEN DOOR
+  =======================================
+
+  Intelligence has identified "PeopleAPI" - a user management API deployed by
+  a target organization. The development team failed to implement proper
+  authorization checks on their user data endpoints.
+
+  The API allows authenticated users to query user profiles by numeric ID,
+  but it never validates whether the requester should have access to the
+  requested profile. This classic IDOR flaw means any authenticated user
+  can enumerate and access every user record in the system.
+
+  PHASE 1 - RECONNAISSANCE
+    Probe the API to discover available endpoints. The application has a
+    public health-check and documentation route. Register an account and
+    observe how user IDs are assigned.
+
+  PHASE 2 - IDOR EXPLOITATION
+    Using your authenticated session, manipulate the user ID parameter to
+    access other users' profiles. Enumerate through IDs to discover all
+    accounts in the system.
+
+  PHASE 3 - ADMIN DATA EXTRACTION
+    Locate the admin user's profile which contains sensitive configuration
+    data and the final flag. The admin account was the first registered
+    user in the system.
+
+  Good luck, operator.
+author: "howl-team"
+cves:
+  - "CWE-639"
+tags:
+  - "idor"
+  - "authorization"
+  - "api"
+  - "enumeration"
+  - "broken-access-control"
+services:
+  - name: "api"
+    port: 3000
+    protocol: "http"
+    description: "PeopleAPI - User management REST API"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >
+      Discover the API endpoints by probing the application. Locate the
+      documentation or health-check route that reveals the API structure.
+      Register a user account and observe the response to understand how
+      user IDs are assigned sequentially.
+    tools_suggested:
+      - "curl"
+      - "nmap"
+      - "nikto"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Start by sending a GET request to common API paths like /api/, /api/docs, or /api/health."
+      - level: 2
+        text: "The /api/docs endpoint returns a JSON listing of all available routes, their methods, and required authentication."
+      - level: 3
+        text: "Register a user via POST /api/register with JSON body {\"username\":\"test\",\"password\":\"test\"}. Note the numeric user ID in the response."
+
+  - name: "IDOR Exploitation"
+    description: >
+      Use your authenticated token to access other users' data by manipulating
+      the user ID parameter in the /api/users/<id> endpoint. The API does not
+      verify that the requesting user owns the profile being accessed. Enumerate
+      through user IDs to discover all accounts.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+      - "python3"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "After authenticating, try GET /api/users/1, /api/users/2, etc. with your Bearer token. The API returns full profile data regardless of which user you are."
+      - level: 2
+        text: "Your user was likely assigned ID 4 or higher. Try accessing /api/users/1 through /api/users/3 to see the pre-existing accounts."
+      - level: 3
+        text: "Use curl -H 'Authorization: Bearer <your-token>' http://target:3000/api/users/2 to access another user's complete profile data including email, phone, and internal notes."
+
+  - name: "Admin Data Extraction"
+    description: >
+      Locate and access the admin user's profile, which contains a secret_notes
+      field with sensitive configuration data and the root flag. The admin
+      account is the first user registered in the system (ID 1).
+    tools_suggested:
+      - "curl"
+      - "python3"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "The admin user is ID 1. Access their profile to find sensitive data in the secret_notes field."
+      - level: 2
+        text: "GET /api/users/1 with your token reveals the admin's profile. Look for a 'secret_notes' field containing a path or flag reference."
+      - level: 3
+        text: "The admin profile's secret_notes field contains the flag directly. Access GET /api/users/1/notes for the full admin notes including the root flag."
+
+par_time_minutes: 25
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

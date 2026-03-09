@@ -1,0 +1,151 @@
+name: "Broken Object-Level Authorization"
+slug: "broken-object-auth"
+difficulty: "hard"
+description: >
+  A REST API with JWT authentication but without object-level authorization
+  checks. The API verifies that users are authenticated but never validates
+  whether they should have access to the specific resource they are requesting.
+  An attacker can access and modify any user's resources including admin settings.
+briefing: |
+  MISSION BRIEFING - OPERATION FLAT ACCESS
+  ==========================================
+
+  Intelligence has identified "CloudNotes" - a cloud-based note-taking and
+  settings management API. The application uses JWT tokens for authentication
+  and implements role-based access control for some admin endpoints.
+
+  However, the API suffers from Broken Object-Level Authorization (BOLA).
+  While it checks that a user is authenticated, it never verifies that the
+  authenticated user should have access to the specific object they are
+  requesting. Any authenticated user can read, modify, or delete any other
+  user's notes and settings by manipulating resource IDs.
+
+  PHASE 1 - RECONNAISSANCE
+    Map the API surface and understand the authentication mechanism. Register
+    an account, obtain a JWT, and explore your own resources to understand
+    the data model and endpoint structure.
+
+  PHASE 2 - REGISTRATION & TOKEN
+    Register a user account and study the JWT token structure. Understand
+    how the API identifies users and resources. Note the user ID in your
+    token and resource URLs.
+
+  PHASE 3 - OBJECT-LEVEL ACCESS
+    Access other users' resources by manipulating the user ID or resource ID
+    in API requests. Read other users' notes, enumerate all resources, and
+    discover the admin user's data.
+
+  PHASE 4 - ADMIN SETTINGS MODIFICATION
+    Modify the admin user's settings to expose sensitive configuration
+    including the root flag. The settings endpoint allows PATCH requests
+    to update any user's settings without ownership verification.
+
+  Good luck, operator.
+author: "howl-team"
+cves:
+  - "CWE-285"
+tags:
+  - "bola"
+  - "broken-object-authorization"
+  - "jwt"
+  - "api"
+  - "access-control"
+services:
+  - name: "api"
+    port: 3000
+    protocol: "http"
+    description: "CloudNotes - Cloud note-taking API"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >
+      Discover the API endpoints and understand the authentication mechanism.
+      The API uses JWT tokens and exposes a documentation endpoint. Map out
+      all available routes, methods, and required parameters.
+    tools_suggested:
+      - "curl"
+      - "nmap"
+      - "nikto"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Start with GET /api/docs to discover all available endpoints and their authentication requirements."
+      - level: 2
+        text: "The API has endpoints for notes (/api/users/<id>/notes) and settings (/api/users/<id>/settings). Both take a user ID parameter."
+      - level: 3
+        text: "The /api/docs endpoint includes a debug token (recon flag). Note that resource endpoints use numeric user IDs in the URL path."
+
+  - name: "Register & Get Token"
+    description: >
+      Register a new user account and obtain a JWT token. Study the token
+      structure to understand how user identity is encoded. Note your
+      assigned user ID and how it maps to resource URLs.
+    tools_suggested:
+      - "curl"
+      - "jwt_tool"
+      - "python3"
+    flag:
+      type: "stage"
+      path: "/opt/secrets/auth_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Register via POST /api/register with {\"username\":\"test\",\"password\":\"test\"}. Decode the JWT to see your user_id."
+      - level: 2
+        text: "The JWT contains user_id, username, and role claims. Your user_id will be 4 or higher. Pre-existing users have IDs 1-3."
+      - level: 3
+        text: "Access your own notes at /api/users/<your_id>/notes and settings at /api/users/<your_id>/settings to understand the data model."
+
+  - name: "Cross-User Access"
+    description: >
+      Exploit the broken object-level authorization by accessing other users'
+      resources. Use your valid JWT token but change the user ID in the URL
+      to access notes belonging to other users. Enumerate user IDs 1-3 to
+      discover pre-existing accounts and their data.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+      - "python3"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 125
+    hints:
+      - level: 1
+        text: "Try accessing /api/users/1/notes with your token. The API should return notes belonging to user 1 (admin) without checking ownership."
+      - level: 2
+        text: "Enumerate /api/users/1/notes, /api/users/2/notes, /api/users/3/notes to find sensitive notes from other users."
+      - level: 3
+        text: "User 1 (admin) has notes containing sensitive data. The user flag is in one of the admin's notes at /api/users/1/notes."
+
+  - name: "Admin Settings Modification"
+    description: >
+      Modify the admin user's settings to expose the root flag. The settings
+      endpoint accepts PATCH requests to update any user's settings. Change
+      the admin's debug_mode setting to true, which triggers the API to
+      include the root flag in the settings response.
+    tools_suggested:
+      - "curl"
+      - "python3"
+      - "burpsuite"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "The /api/users/1/settings endpoint allows PATCH requests. Try modifying the admin's settings."
+      - level: 2
+        text: "PATCH /api/users/1/settings with {\"debug_mode\": true} enables debug mode on the admin account. Then GET the settings again."
+      - level: 3
+        text: "After enabling debug_mode on admin's settings, GET /api/users/1/settings returns additional debug data including the root flag in a 'debug_secret' field."
+
+par_time_minutes: 50
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

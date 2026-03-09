@@ -1,0 +1,147 @@
+name: "Wildcard Tar Checkpoint"
+slug: "wildcard-tar-privesc"
+version: "1.0.0"
+difficulty: "hard"
+description: >-
+  A root cron job runs tar with a wildcard (*) in a user-writable directory.
+  The tar command interprets specially crafted filenames as command-line
+  options. By creating files named like tar checkpoint arguments, an
+  attacker can trick tar into executing arbitrary commands as root.
+briefing: |
+  MISSION BRIEFING - OPERATION WILDCARD
+  =======================================
+
+  Agent, we have identified a backup server belonging to TarPit Backups, a
+  managed backup service provider. The server runs an automated backup cron
+  job that archives the contents of a shared directory using tar.
+
+  The backup script uses a wildcard (tar cf /backup/archive.tar *) in a
+  directory writable by regular users. This is a well-known Linux privilege
+  escalation vector. The tar command interprets filenames that look like
+  command-line flags (e.g., --checkpoint, --checkpoint-action) as actual
+  arguments. An attacker can create files with these special names to
+  inject arbitrary actions into the tar execution.
+
+  A web-based backup portal on the target leaks credentials through an
+  insecure log viewer.
+
+  Your objectives:
+    1. Enumerate the web application and find leaked credentials
+    2. SSH into the target and discover the backup cron job
+    3. Identify the wildcard tar vulnerability
+    4. Exploit the tar checkpoint trick to execute commands as root
+
+  This is a classic Linux CTF technique, agent. Time to get creative
+  with filenames.
+
+author: "howl-team"
+cves:
+  - "CWE-78"
+tags:
+  - "wildcard"
+  - "tar"
+  - "cron"
+  - "privilege-escalation"
+  - "linux"
+  - "checkpoint"
+  - "ssh"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "TarPit Backups portal (Flask)"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web application. Find a log viewer
+      or admin page that leaks system credentials.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "gobuster"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan for open ports and explore the web application on port 8080."
+      - level: 2
+        text: "The web app has a /logs endpoint that shows backup job output."
+      - level: 3
+        text: "The /logs page reveals SSH credentials and the backup script path. Check HTML comments for the recon flag location."
+
+  - name: "Initial Access"
+    description: >-
+      Use the discovered credentials to SSH into the system. Retrieve
+      the user flag and begin enumerating scheduled tasks.
+    tools_suggested:
+      - "ssh"
+      - "cat"
+      - "crontab"
+    flag:
+      type: "user"
+      path: "/home/backupuser/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "SSH into the target with the credentials from the logs page."
+      - level: 2
+        text: "Log in as backupuser:T4rP1t_Bkup#2024. Read ~/user.txt for the flag."
+      - level: 3
+        text: "After getting the user flag, check /etc/crontab for root-owned backup jobs."
+
+  - name: "Vulnerability Discovery"
+    description: >-
+      Examine the backup cron job. Identify that tar is run with a
+      wildcard in a user-writable directory. Understand the tar
+      checkpoint injection technique.
+    tools_suggested:
+      - "cat"
+      - "ls"
+      - "crontab"
+    flag:
+      type: "stage"
+      path: "/opt/.backup_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Read the backup script to see how tar is invoked."
+      - level: 2
+        text: "The script runs: cd /home/backupuser/data && tar cf /backup/archive.tar * as root."
+      - level: 3
+        text: "The /home/backupuser/data directory is writable. Tar interprets filenames as arguments. The discovery flag is at /opt/.backup_flag.txt."
+
+  - name: "Privilege Escalation"
+    description: >-
+      Create specially named files in the data directory that tar will
+      interpret as --checkpoint and --checkpoint-action arguments.
+      These will cause tar to execute arbitrary commands as root on
+      the next cron cycle.
+    tools_suggested:
+      - "touch"
+      - "echo"
+      - "tar"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Research tar checkpoint injection. Tar treats filenames like --checkpoint=1 as arguments."
+      - level: 2
+        text: "Create a payload script and two specially named files in /home/backupuser/data/."
+      - level: 3
+        text: "echo 'cp /root/root.txt /tmp/root.txt && chmod 644 /tmp/root.txt' > /home/backupuser/data/shell.sh && chmod +x /home/backupuser/data/shell.sh && touch '/home/backupuser/data/--checkpoint=1' && touch '/home/backupuser/data/--checkpoint-action=exec=sh shell.sh'. Wait for cron, then cat /tmp/root.txt."
+
+par_time_minutes: 45
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

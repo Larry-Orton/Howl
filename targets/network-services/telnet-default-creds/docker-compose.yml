@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  telnet-default-creds:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telnet-default-creds
+    ports:
+      - "23:23"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=telnet-default-creds"
+      - "howl.difficulty=medium"

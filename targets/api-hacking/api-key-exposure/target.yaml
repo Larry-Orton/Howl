@@ -1,0 +1,126 @@
+name: "API Key Exposure in Client"
+slug: "api-key-exposure"
+difficulty: "easy"
+description: >
+  A web frontend with an API key hardcoded in client-side JavaScript. The
+  exposed key grants access to a backend API's protected admin endpoints,
+  allowing extraction of sensitive data including user credentials and flags.
+briefing: |
+  MISSION BRIEFING - OPERATION GLASS HOUSE
+  ==========================================
+
+  Intelligence has identified "DataDash" - a data analytics dashboard deployed
+  by the target organization. The application uses a separate frontend and
+  backend API architecture. The frontend is served on port 8080 and communicates
+  with a backend API on port 3000.
+
+  Our sources indicate that the development team hardcoded an API key directly
+  in the frontend's JavaScript code to authenticate requests to the backend.
+  This key was intended for server-to-server communication only, but the
+  frontend developers embedded it in client-side code for convenience.
+
+  PHASE 1 - RECONNAISSANCE
+    Access the frontend application and inspect the page source. Look for
+    JavaScript files, inline scripts, and configuration objects that may
+    contain sensitive values.
+
+  PHASE 2 - KEY EXTRACTION
+    Locate the hardcoded API key in the client-side JavaScript. Understand
+    how the frontend uses this key to authenticate with the backend API.
+
+  PHASE 3 - ADMIN ACCESS
+    Use the extracted API key to directly access the backend API's protected
+    admin endpoint, bypassing the frontend entirely. The admin endpoint
+    exposes sensitive data including the final flag.
+
+  Good luck, operator.
+author: "howl-team"
+cves:
+  - "CWE-798"
+tags:
+  - "api-key"
+  - "hardcoded-credentials"
+  - "client-side"
+  - "information-disclosure"
+  - "web"
+services:
+  - name: "frontend"
+    port: 8080
+    protocol: "http"
+    description: "DataDash Frontend - Analytics dashboard"
+  - name: "api"
+    port: 3000
+    protocol: "http"
+    description: "DataDash API - Backend data API"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >
+      Access the frontend web application and perform basic reconnaissance.
+      Inspect the page source, JavaScript files, and network requests to
+      understand the application architecture and how the frontend communicates
+      with the backend API.
+    tools_suggested:
+      - "curl"
+      - "nmap"
+      - "browser-devtools"
+      - "nikto"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Access the frontend on port 8080 in a browser or with curl. View the page source."
+      - level: 2
+        text: "Look at the HTML source carefully. There is an inline JavaScript block containing configuration data."
+      - level: 3
+        text: "The page source contains a JavaScript object named 'APP_CONFIG' or similar that includes API URLs and credentials."
+
+  - name: "API Key Extraction"
+    description: >
+      Extract the hardcoded API key from the client-side JavaScript code.
+      The key is embedded directly in the frontend source and is visible
+      to anyone who views the page source.
+    tools_suggested:
+      - "browser-devtools"
+      - "curl"
+      - "grep"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Search the JavaScript source for keywords like 'api_key', 'apiKey', 'token', 'secret', or 'authorization'."
+      - level: 2
+        text: "The APP_CONFIG object contains an 'api_key' field with a long string value. This is the backend API key."
+      - level: 3
+        text: "The key looks like 'datadash-admin-key-a8f3b2c1e9d7f4a6'. Use it as an X-API-Key header when calling the backend API on port 3000."
+
+  - name: "Admin Endpoint Access"
+    description: >
+      Use the extracted API key to access the backend API's protected admin
+      endpoint directly. The admin endpoint exposes system configuration,
+      user database, and the root flag.
+    tools_suggested:
+      - "curl"
+      - "python3"
+      - "burpsuite"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "The backend API on port 3000 has an /api/admin endpoint that requires the X-API-Key header."
+      - level: 2
+        text: "curl -H 'X-API-Key: <extracted-key>' http://target:3000/api/admin/secrets returns sensitive data."
+      - level: 3
+        text: "The /api/admin/secrets endpoint returns a JSON object with a 'master_flag' field containing the root flag."
+
+par_time_minutes: 20
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

@@ -1,0 +1,153 @@
+name: "Kernel Exploit (DirtyPipe)"
+slug: "kernel-dirtypipe"
+version: "1.0.0"
+difficulty: "elite"
+description: >-
+  A Linux system is running a kernel version vulnerable to CVE-2022-0847
+  (DirtyPipe). This vulnerability allows an unprivileged user to overwrite
+  data in read-only files by abusing a flaw in the Linux pipe subsystem.
+  The target simulates this vulnerability with a pre-compiled exploit
+  binary that must be discovered, compiled, and executed to overwrite
+  /etc/passwd and gain root access.
+briefing: |
+  MISSION BRIEFING - OPERATION DIRTY PIPE
+  =========================================
+
+  Agent, we have identified a production server belonging to KernelSec
+  Industries, a security hardware manufacturer. The server is running
+  Linux kernel version 5.16.11, which is vulnerable to CVE-2022-0847,
+  commonly known as "DirtyPipe."
+
+  DirtyPipe is a critical kernel vulnerability that allows any unprivileged
+  user to overwrite data in arbitrary read-only files. The vulnerability
+  exists in the pipe subsystem where the PIPE_BUF_FLAG_CAN_MERGE flag is
+  not properly cleared, allowing a user to splice data into a pipe and then
+  write to the pipe, overwriting the cached file page.
+
+  In this simulated environment, a pre-built exploit binary exists on the
+  system that can be used to overwrite /etc/passwd and inject a root-level
+  user. The challenge is to discover the exploit, understand its usage,
+  and execute it to gain root access.
+
+  A web application on the target has a command injection vulnerability
+  that provides initial access. SSH credentials can be found through
+  filesystem enumeration.
+
+  Your objectives:
+    1. Exploit the web application for initial enumeration
+    2. Gain SSH access to the target
+    3. Identify the kernel version and locate the DirtyPipe exploit
+    4. Run the exploit to overwrite /etc/passwd and escalate to root
+
+  This is an elite-level challenge, agent. Kernel exploits are high-risk,
+  high-reward. Proceed with precision.
+
+author: "howl-team"
+cves:
+  - "CVE-2022-0847"
+tags:
+  - "kernel-exploit"
+  - "dirtypipe"
+  - "privilege-escalation"
+  - "linux"
+  - "cve-2022-0847"
+  - "pipe"
+  - "ssh"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "KernelSec Industries web portal (Flask)"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web application. The web app has a
+      command injection vulnerability in a diagnostic tool. Use it to
+      enumerate the system and discover the kernel version.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "browser"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan for open ports and explore the web application on port 8080."
+      - level: 2
+        text: "The web app has a /syscheck endpoint with a command injection vulnerability."
+      - level: 3
+        text: "Inject: 127.0.0.1; cat /var/www/.config/recon_flag.txt to get the recon flag."
+
+  - name: "Initial Access"
+    description: >-
+      Use the command injection to discover SSH credentials stored on
+      the filesystem. Gain SSH access as a low-privileged user.
+    tools_suggested:
+      - "curl"
+      - "ssh"
+    flag:
+      type: "user"
+      path: "/home/kerneluser/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Use command injection to enumerate the filesystem for credential files."
+      - level: 2
+        text: "Inject: 127.0.0.1; cat /opt/.ssh_credentials to find SSH login details."
+      - level: 3
+        text: "SSH as kerneluser:K3rn3lS3c_2024! and read ~/user.txt for the user flag."
+
+  - name: "Exploit Discovery"
+    description: >-
+      Enumerate the kernel version and search the filesystem for exploit
+      code or pre-compiled binaries. Identify the DirtyPipe exploit.
+    tools_suggested:
+      - "uname"
+      - "find"
+      - "searchsploit"
+    flag:
+      type: "stage"
+      path: "/opt/.kernel_flag.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Check the kernel version with 'uname -r'. Search for known exploits for this version."
+      - level: 2
+        text: "Look for exploit files on the system: find / -name '*dirty*' -o -name '*exploit*' 2>/dev/null"
+      - level: 3
+        text: "A simulated DirtyPipe exploit is at /opt/exploits/dirtypipe. The kernel discovery flag is at /opt/.kernel_flag.txt."
+
+  - name: "Privilege Escalation"
+    description: >-
+      Execute the DirtyPipe exploit to overwrite /etc/passwd and inject
+      a root-level user entry. Switch to the new user to gain root access
+      and capture the final flag.
+    tools_suggested:
+      - "gcc"
+      - "python3"
+      - "su"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 250
+    hints:
+      - level: 1
+        text: "Read the exploit usage instructions: /opt/exploits/dirtypipe --help"
+      - level: 2
+        text: "The exploit overwrites a specified file at a given offset. Use it to modify /etc/passwd."
+      - level: 3
+        text: "Run: /opt/exploits/dirtypipe /etc/passwd 1 'hacker:$1$xyz$abc123:0:0::/root:/bin/bash' then su hacker to get root. Or simply run /opt/exploits/dirtypipe --auto to auto-exploit and drop to root shell. Then cat /root/root.txt."
+
+par_time_minutes: 60
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

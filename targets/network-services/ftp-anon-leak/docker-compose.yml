@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  ftp-anon-leak:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ftp-anon-leak
+    ports:
+      - "21:21"
+      - "22:22"
+      - "8080:8080"
+      - "40000-40100:40000-40100"
+    restart: unless-stopped
+    labels:
+      - "howl.target=ftp-anon-leak"
+      - "howl.difficulty=easy"

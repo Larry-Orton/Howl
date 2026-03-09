@@ -1,0 +1,121 @@
+name: "Weak Password Hashing (MD5)"
+slug: "weak-hashing-md5"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A user management portal that stores passwords using unsalted MD5
+  hashes. Discover the login system, extract the MD5 hashes through
+  an exposed API endpoint, crack them, and log in as admin.
+briefing: |
+  MISSION BRIEFING - OPERATION CRACKED VAULT
+  =============================================
+
+  Agent, CipherStack Corp. is running a user management portal on
+  port 8080 with a MySQL database on port 3306. Intelligence suggests
+  the developer used unsalted MD5 to hash user passwords -- a
+  catastrophically weak choice.
+
+  An API endpoint may be leaking user data including password hashes.
+  If you can extract and crack the admin's MD5 hash, you will gain
+  full access to the system.
+
+  Your objectives:
+    1. Discover the login and registration system
+    2. Extract MD5 password hashes from the exposed endpoint
+    3. Crack the MD5 hashes and log in as admin
+
+  Good luck, agent. MD5 was broken decades ago.
+
+author: "howl-team"
+cves:
+  - "CWE-328"
+tags:
+  - "weak-hashing"
+  - "md5"
+  - "password-cracking"
+  - "hash-cracking"
+  - "cryptography"
+  - "authentication"
+
+services:
+  - name: "webapp"
+    port: 8080
+    protocol: "tcp"
+    description: "CipherStack User Portal (Flask)"
+  - name: "mysql"
+    port: 3306
+    protocol: "tcp"
+    description: "MySQL Database Server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web application login system,
+      registration endpoint, and any API endpoints that may leak data.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "dirb"
+      - "nikto"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.internal/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Run a port scan and enumerate web directories."
+      - level: 2
+        text: "Look for API endpoints like /api/users or /api/debug."
+      - level: 3
+        text: "Access /api/users/debug to see the user list with password hashes."
+
+  - name: "Hash Extraction"
+    description: >-
+      Extract the MD5 password hashes from the exposed API endpoint
+      or database. Identify the hashing algorithm and prepare for
+      cracking.
+    tools_suggested:
+      - "curl"
+      - "hashid"
+      - "hash-identifier"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "The /api/users/debug endpoint returns user data including password hashes."
+      - level: 2
+        text: "The hashes are 32 characters long -- classic MD5 format."
+      - level: 3
+        text: "The admin hash is the MD5 of a common password. Try cracking with hashcat or online lookup."
+
+  - name: "Hash Cracking and Login"
+    description: >-
+      Crack the unsalted MD5 password hashes using rainbow tables,
+      dictionary attacks, or online databases, then log in as admin.
+    tools_suggested:
+      - "hashcat"
+      - "john"
+      - "crackstation"
+      - "curl"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Use hashcat -m 0 (MD5 mode) with a common password wordlist like rockyou.txt."
+      - level: 2
+        text: "The admin password is in the rockyou wordlist. Try CrackStation.net for quick lookup."
+      - level: 3
+        text: "The admin password is 'trustno1'. Log in at /login with admin:trustno1."
+
+par_time_minutes: 35
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true
+  post_start:
+    - container: "webapp"
+      command: "python /app/init_db.py"

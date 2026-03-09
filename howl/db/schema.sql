@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS target_progress (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     target_slug     TEXT NOT NULL UNIQUE,
     difficulty      TEXT NOT NULL,
+    category        TEXT NOT NULL DEFAULT '',
     status          TEXT NOT NULL DEFAULT 'not_started',
     best_score      INTEGER NOT NULL DEFAULT 0,
     best_time_secs  INTEGER,

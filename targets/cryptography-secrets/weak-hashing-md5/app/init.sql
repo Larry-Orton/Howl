@@ -1,0 +1,3 @@
+CREATE DATABASE IF NOT EXISTS cipherstack;
+GRANT ALL PRIVILEGES ON cipherstack.* TO 'cs_app'@'%';
+FLUSH PRIVILEGES;

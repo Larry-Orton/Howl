@@ -1,0 +1,120 @@
+name: "Linux Capabilities Abuse"
+slug: "capabilities-abuse"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A Linux system has Python3 configured with the cap_setuid capability,
+  allowing it to change the process UID. A low-privileged user can import
+  the os module and call setuid(0) to become root, bypassing normal
+  privilege boundaries without needing the SUID bit.
+briefing: |
+  MISSION BRIEFING - OPERATION CAP GUN
+  =======================================
+
+  Agent, we have identified a server belonging to CapStone Analytics, a
+  data science company. Their system administrator granted Python3 the
+  CAP_SETUID Linux capability so that an analytics pipeline could run
+  certain operations as root without granting full SUID permissions.
+
+  Linux capabilities are a fine-grained alternative to the SUID bit, but
+  CAP_SETUID is nearly as dangerous. Any user who can execute the Python3
+  binary can call os.setuid(0) to switch to the root user, then spawn a
+  root shell or read any file on the system.
+
+  A web-based analytics dashboard on the target leaks credentials through
+  an exposed API endpoint.
+
+  Your objectives:
+    1. Enumerate the web application and discover credentials
+    2. SSH into the target and identify binaries with capabilities
+    3. Exploit the cap_setuid capability on Python3 to become root
+
+  Capabilities are a nuanced topic, agent. Good luck.
+
+author: "howl-team"
+cves:
+  - "CWE-269"
+tags:
+  - "capabilities"
+  - "privilege-escalation"
+  - "linux"
+  - "python"
+  - "cap-setuid"
+  - "ssh"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "CapStone Analytics dashboard (Flask)"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web dashboard. Enumerate API
+      endpoints to find one that leaks system credentials.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "gobuster"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan for open ports and explore the web application on port 8080."
+      - level: 2
+        text: "The web application has an /api/health endpoint that returns extra information."
+      - level: 3
+        text: "The /api/health endpoint returns JSON with SSH credentials and a reference to the recon flag."
+
+  - name: "Initial Access"
+    description: >-
+      Use the discovered credentials to SSH into the system. Retrieve the
+      user flag and begin enumeration for privilege escalation vectors.
+    tools_suggested:
+      - "ssh"
+      - "cat"
+      - "getcap"
+    flag:
+      type: "user"
+      path: "/home/analyst/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "SSH in using the credentials from the API endpoint."
+      - level: 2
+        text: "Log in as analyst with password C4pSt0ne_D4ta! on port 22."
+      - level: 3
+        text: "Read ~/user.txt for the user flag. Then run: getcap -r / 2>/dev/null to find binaries with capabilities."
+
+  - name: "Privilege Escalation"
+    description: >-
+      Discover that Python3 has the cap_setuid capability. Use Python to
+      call os.setuid(0) and escalate to root.
+    tools_suggested:
+      - "getcap"
+      - "python3"
+      - "gtfobins"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Use getcap to find binaries with Linux capabilities set."
+      - level: 2
+        text: "Python3 has cap_setuid+ep. Check GTFOBins for capability-based exploits."
+      - level: 3
+        text: "Run: python3 -c 'import os; os.setuid(0); os.system(\"/bin/bash\")' to get a root shell."
+
+par_time_minutes: 30
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

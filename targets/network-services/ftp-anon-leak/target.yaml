@@ -1,0 +1,123 @@
+name: "Anonymous FTP Credential Leak"
+slug: "ftp-anon-leak"
+version: "1.0.0"
+difficulty: "easy"
+description: >-
+  A misconfigured FTP server allows anonymous access to a share containing
+  backup files with plaintext credentials. Use the leaked credentials to
+  gain SSH access and retrieve the final flag from the system.
+briefing: |
+  MISSION BRIEFING - OPERATION OPEN LOCKER
+  ==========================================
+
+  Agent, we have identified an FTP server belonging to Vaultline Systems,
+  a document storage company with notoriously lax security practices.
+
+  Our signals intelligence picked up an unencrypted FTP service running on
+  their perimeter. Preliminary scans suggest anonymous login may be enabled,
+  a critical misconfiguration that could expose internal files.
+
+  Intelligence suggests the IT team has been using the FTP share for backup
+  transfers and may have left credential files in accessible directories.
+
+  Your objectives:
+    1. Scan the target and discover the FTP service with anonymous access
+    2. Download and analyze files from the FTP share
+    3. Use any discovered credentials to gain SSH access and retrieve the flag
+
+  Stay quiet and move fast, agent. This one should be straightforward.
+
+author: "howl-team"
+cves:
+  - "CWE-284"
+  - "CWE-522"
+tags:
+  - "ftp"
+  - "anonymous-access"
+  - "credential-leak"
+  - "network-services"
+  - "ssh"
+
+services:
+  - name: "ftp"
+    port: 21
+    protocol: "tcp"
+    description: "vsftpd FTP server with anonymous access"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "Vaultline Systems status page"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover open ports and services. Identify the
+      FTP server and determine that anonymous login is permitted. A web
+      status page on port 8080 leaks the recon flag in a hidden comment.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "nikto"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.status/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Run a full port scan against the target to discover all running services."
+      - level: 2
+        text: "Check the web page on port 8080 carefully, including the HTML source."
+      - level: 3
+        text: "View source on the status page at port 8080. There is an HTML comment containing a path to the recon flag."
+
+  - name: "FTP Credential Extraction"
+    description: >-
+      Connect to the FTP server using anonymous credentials (user: anonymous,
+      password: empty). Browse the share and locate backup files containing
+      plaintext credentials for system users.
+    tools_suggested:
+      - "ftp"
+      - "lftp"
+      - "wget"
+      - "curl"
+    flag:
+      type: "user"
+      path: "/home/ftpuser/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Try connecting to the FTP server with username 'anonymous' and an empty password."
+      - level: 2
+        text: "Browse the FTP share for backup or configuration files. Check the 'backups' directory."
+      - level: 3
+        text: "Download backup_creds.txt from the backups directory. It contains SSH credentials for the sysadmin user."
+
+  - name: "SSH Access & Flag Retrieval"
+    description: >-
+      Use the credentials discovered in the FTP share to authenticate via
+      SSH. Enumerate the system and locate the final flag.
+    tools_suggested:
+      - "ssh"
+      - "find"
+      - "cat"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Use the sysadmin credentials from the FTP share to log in via SSH on port 22."
+      - level: 2
+        text: "Once logged in, check sudo permissions with 'sudo -l'."
+      - level: 3
+        text: "The sysadmin user can run /usr/bin/cat as root. Use: sudo cat /root/root.txt"
+
+par_time_minutes: 20
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

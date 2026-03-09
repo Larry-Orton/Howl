@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  writable-passwd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: howl-writable-passwd
+    ports:
+      - "22:22"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=writable-passwd"
+      - "howl.difficulty=medium"

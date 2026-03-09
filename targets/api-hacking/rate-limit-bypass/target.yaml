@@ -1,0 +1,126 @@
+name: "Rate Limit Bypass Brute Force"
+slug: "rate-limit-bypass"
+difficulty: "medium"
+description: >
+  A REST API with rate limiting that can be bypassed via X-Forwarded-For header
+  manipulation. The flawed rate limiter uses client-provided headers to identify
+  unique clients, allowing an attacker to reset the rate limit counter at will
+  and brute-force the admin login.
+briefing: |
+  MISSION BRIEFING - OPERATION FLOOD GATE
+  =========================================
+
+  Intelligence has identified "SecureVault" - a credential management API that
+  implements rate limiting to prevent brute-force attacks on its authentication
+  endpoint. After 5 failed login attempts, the API blocks further attempts for
+  60 seconds.
+
+  However, the rate limiting implementation trusts the X-Forwarded-For header
+  to identify clients. In a reverse-proxy architecture, this header typically
+  contains the real client IP, but the application fails to validate it.
+  An attacker can spoof this header to reset the rate limit counter with every
+  request, completely bypassing the protection.
+
+  PHASE 1 - RECONNAISSANCE
+    Discover the API endpoints and observe the rate limiting behavior. Trigger
+    the rate limiter and study the error response to understand the blocking
+    mechanism.
+
+  PHASE 2 - RATE LIMIT BYPASS
+    Discover that the X-Forwarded-For header can be used to spoof your client
+    identity. Each unique IP in this header gets its own rate limit counter.
+    Rotate through different spoofed IPs to bypass the rate limit.
+
+  PHASE 3 - BRUTE FORCE ADMIN
+    With the rate limit bypassed, brute-force the admin account's password
+    using a common password list. Access the admin panel to retrieve the flag.
+
+  Good luck, operator.
+author: "howl-team"
+cves:
+  - "CWE-307"
+tags:
+  - "rate-limiting"
+  - "brute-force"
+  - "header-manipulation"
+  - "authentication"
+  - "bypass"
+services:
+  - name: "api"
+    port: 3000
+    protocol: "http"
+    description: "SecureVault - Credential management API"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >
+      Discover the API endpoints and identify the rate limiting mechanism.
+      Attempt multiple failed logins to trigger the rate limiter and study
+      the response headers and error messages to understand how the blocking
+      works.
+    tools_suggested:
+      - "curl"
+      - "nmap"
+      - "nikto"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Access /api/docs to discover the available endpoints. Try POST /api/login with incorrect credentials multiple times."
+      - level: 2
+        text: "After 5 failed attempts, the API returns a 429 status code with a rate limit message. Check the response headers for X-RateLimit-* values."
+      - level: 3
+        text: "The rate limit response includes the header X-RateLimit-Remaining and a body message explaining the 60-second lockout. The /api/docs endpoint includes a recon token."
+
+  - name: "Rate Limit Bypass"
+    description: >
+      Bypass the rate limiting mechanism by manipulating the X-Forwarded-For
+      request header. The rate limiter uses this header to identify unique
+      clients. By changing the IP address in each request, you get a fresh
+      rate limit counter.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+      - "python3"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "The rate limiter identifies clients by IP. In proxy environments, X-Forwarded-For carries the real client IP. What if you can control this header?"
+      - level: 2
+        text: "Try adding 'X-Forwarded-For: 1.2.3.4' to your request. Each unique IP gets its own rate limit window."
+      - level: 3
+        text: "Rotate the X-Forwarded-For header value with each request: curl -H 'X-Forwarded-For: 10.0.0.1' -X POST http://target:3000/api/login -d '{...}'. Each new IP resets your counter."
+
+  - name: "Admin Brute Force"
+    description: >
+      With the rate limit bypassed, brute-force the admin account password.
+      The admin password is a common password that appears in standard
+      wordlists. Access the admin panel to retrieve the final flag.
+    tools_suggested:
+      - "python3"
+      - "hydra"
+      - "burpsuite"
+      - "wfuzz"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 125
+    hints:
+      - level: 1
+        text: "The admin username is 'admin'. Use a common password list (rockyou top 100) with rate limit bypass to brute-force the login."
+      - level: 2
+        text: "Write a Python script that tries passwords from a list, rotating X-Forwarded-For for each attempt. The password is in the top 50 most common passwords."
+      - level: 3
+        text: "The admin password is 'letmein'. Login with admin/letmein and access GET /api/admin/vault with the token to get the root flag."
+
+par_time_minutes: 35
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

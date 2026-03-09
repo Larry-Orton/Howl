@@ -1,0 +1,112 @@
+name: "Backup File with Credentials"
+slug: "backup-file-creds"
+version: "1.0.0"
+difficulty: "easy"
+description: >-
+  A corporate HR portal with leftover backup files (.bak, .old) that
+  contain plaintext credentials. Discover the backup files through
+  directory enumeration, extract the credentials, and use them to
+  access the protected area.
+briefing: |
+  MISSION BRIEFING - OPERATION LEFTOVER
+  =======================================
+
+  Agent, MeridianHR is running an employee self-service portal on
+  port 8080. The system administrator recently migrated configuration
+  files but left backup copies (.bak and .old) on the web server.
+
+  These backup files may contain the original credentials in plaintext.
+  Your mission is to discover these leftovers and use them to gain
+  access to the protected administration area.
+
+  Your objectives:
+    1. Enumerate the target and discover backup files via directory scanning
+    2. Read the backup files to find credentials
+    3. Use the credentials to access the protected admin area
+
+  Good luck, agent. Lazy cleanup is our advantage.
+
+author: "howl-team"
+cves:
+  - "CWE-530"
+tags:
+  - "backup-files"
+  - "information-disclosure"
+  - "credentials"
+  - "directory-enumeration"
+  - "cryptography"
+  - "secrets-management"
+
+services:
+  - name: "webapp"
+    port: 8080
+    protocol: "tcp"
+    description: "MeridianHR Employee Portal (Flask)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover backup files (.bak, .old, ~) left
+      on the web server through directory brute-forcing with common
+      backup file extensions.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "dirb"
+      - "ffuf"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.maintenance/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Run a directory scan with extensions like .bak, .old, .orig, .save, .conf."
+      - level: 2
+        text: "Try scanning for /config.bak, /settings.old, /app.py.bak."
+      - level: 3
+        text: "Access /config.bak to find a backup of the configuration file."
+
+  - name: "Credential Discovery"
+    description: >-
+      Read the backup files to discover plaintext credentials for the
+      admin account and database access.
+    tools_suggested:
+      - "curl"
+      - "browser"
+      - "wget"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "The backup config file contains credentials in plaintext."
+      - level: 2
+        text: "Look for admin_user and admin_pass fields in config.bak."
+      - level: 3
+        text: "Credentials are: admin_user=hradmin, admin_pass=M3ridian_HR!2024."
+
+  - name: "Protected Area Access"
+    description: >-
+      Log in to the admin portal using the discovered credentials to
+      retrieve the final flag.
+    tools_suggested:
+      - "curl"
+      - "browser"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "There is an admin login page on the application."
+      - level: 2
+        text: "Navigate to /admin/login and use the backup file credentials."
+      - level: 3
+        text: "Log in at /admin/login with hradmin:M3ridian_HR!2024 to get the flag."
+
+par_time_minutes: 20
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

@@ -1,0 +1,121 @@
+name: "Mass Assignment Admin Promotion"
+slug: "mass-assignment"
+difficulty: "easy"
+description: >
+  A REST API vulnerable to mass assignment. The user registration endpoint
+  blindly accepts and stores all JSON properties including privileged fields
+  like is_admin. An attacker can self-promote to admin and access protected
+  management endpoints containing sensitive data.
+briefing: |
+  MISSION BRIEFING - OPERATION FIELD OVERRIDE
+  =============================================
+
+  Intelligence has identified "TeamHub API" - a team management platform used
+  by the target organization. The development team built a rapid prototype and
+  went straight to production without implementing proper input filtering.
+
+  The registration endpoint accepts a JSON body and stores every property
+  directly into the user record without whitelisting allowed fields. Internal
+  fields such as is_admin, which should only be set by system administrators,
+  can be injected by any user during registration.
+
+  PHASE 1 - RECONNAISSANCE
+    Probe the API surface and discover available endpoints. Study the user
+    registration and login flows. Observe the structure of user objects
+    returned by the API to identify interesting internal fields.
+
+  PHASE 2 - MASS ASSIGNMENT
+    Register a new user account while injecting additional properties in the
+    JSON body. Set privileged fields to elevate your account's permissions.
+
+  PHASE 3 - ADMIN ACCESS
+    Use your elevated privileges to access the admin-only management endpoint
+    that exposes sensitive system configuration and the final flag.
+
+  Good luck, operator.
+author: "howl-team"
+cves:
+  - "CWE-915"
+tags:
+  - "mass-assignment"
+  - "authorization"
+  - "api"
+  - "broken-access-control"
+  - "parameter-pollution"
+services:
+  - name: "api"
+    port: 3000
+    protocol: "http"
+    description: "TeamHub API - Team management platform"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >
+      Discover the API endpoints by probing the application. Locate the
+      documentation route and study the user object structure. Register
+      a normal user account and examine the response fields carefully
+      to identify internal properties like is_admin and role.
+    tools_suggested:
+      - "curl"
+      - "nmap"
+      - "nikto"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Send GET requests to /api/, /api/docs, or /api/health to discover the API structure."
+      - level: 2
+        text: "Register a user with POST /api/register and examine all fields in the JSON response, including is_admin and role."
+      - level: 3
+        text: "The /api/docs endpoint reveals all routes. The user profile response shows is_admin: false and role: 'user' - these are the fields you can target."
+
+  - name: "Mass Assignment"
+    description: >
+      Exploit the mass assignment vulnerability by registering a new user
+      with additional privileged fields injected into the JSON body. The
+      registration endpoint does not filter incoming properties, allowing
+      you to set is_admin to true and role to admin.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+      - "python3"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "When registering, try adding extra fields to the JSON body beyond just username and password."
+      - level: 2
+        text: "Include 'is_admin': true in your registration JSON body: POST /api/register with {\"username\":\"hacker\",\"password\":\"pass\",\"is_admin\":true}"
+      - level: 3
+        text: "curl -X POST http://target:3000/api/register -H 'Content-Type: application/json' -d '{\"username\":\"hacker\",\"password\":\"pass\",\"is_admin\":true,\"role\":\"admin\"}'"
+
+  - name: "Admin Access"
+    description: >
+      Use your newly promoted admin account to access the protected admin
+      management endpoint. The admin panel exposes system configuration,
+      database connection strings, and the root flag.
+    tools_suggested:
+      - "curl"
+      - "python3"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Login with your admin account and access the /api/admin/config endpoint using your token."
+      - level: 2
+        text: "The admin endpoint returns system configuration including a secret_data field containing the flag."
+      - level: 3
+        text: "curl -H 'Authorization: Bearer <admin-token>' http://target:3000/api/admin/config returns the root flag in the secret_data field."
+
+par_time_minutes: 20
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

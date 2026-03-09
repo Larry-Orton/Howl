@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  smb-share-enum:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smb-share-enum
+    ports:
+      - "445:445"
+      - "22:22"
+    restart: unless-stopped
+    labels:
+      - "howl.target=smb-share-enum"
+      - "howl.difficulty=easy"

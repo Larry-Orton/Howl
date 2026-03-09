@@ -1,0 +1,116 @@
+name: "Sudo Misconfiguration"
+slug: "sudo-misconfig"
+version: "1.0.0"
+difficulty: "easy"
+description: >-
+  A Linux system has a misconfigured sudoers entry that allows a regular user
+  to run vim as root without a password. The vim editor supports shell escape
+  sequences, enabling full root access from an interactive editor session.
+briefing: |
+  MISSION BRIEFING - OPERATION ESCAPE KEY
+  =========================================
+
+  Agent, we have identified a development server belonging to DevOps United,
+  a consulting firm that provides managed infrastructure services.
+
+  Their system administrator configured sudo to allow a developer account to
+  run vim as root for editing configuration files. However, this creates a
+  trivial privilege escalation path since vim allows executing shell commands
+  from within the editor.
+
+  A web-based project management tool running on the target exposes
+  credentials through a notes feature with no access control.
+
+  Your objectives:
+    1. Enumerate the web application and find leaked credentials
+    2. SSH into the target as the low-privileged developer user
+    3. Exploit the sudo misconfiguration to escalate to root
+
+  This is a common real-world misconfiguration. Proceed, agent.
+
+author: "howl-team"
+cves:
+  - "CWE-269"
+tags:
+  - "sudo"
+  - "privilege-escalation"
+  - "linux"
+  - "vim"
+  - "shell-escape"
+  - "ssh"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "DevOps United project management app (Flask)"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web application. Enumerate the
+      project management tool for sensitive information disclosure.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "browser"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Run a port scan to discover services running on the target."
+      - level: 2
+        text: "The web app on port 8080 has a notes or status page with sensitive information."
+      - level: 3
+        text: "Browse to /notes on the web application. Developer notes contain SSH credentials."
+
+  - name: "Initial Access"
+    description: >-
+      Use the credentials found in the web application to SSH into the
+      system as the developer user. Retrieve the user flag.
+    tools_suggested:
+      - "ssh"
+      - "cat"
+    flag:
+      type: "user"
+      path: "/home/devuser/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Use the credentials from the notes page to log in via SSH."
+      - level: 2
+        text: "SSH as devuser with the password found on the web application."
+      - level: 3
+        text: "ssh devuser@<target> with password DevOps_Temp#2024 then cat ~/user.txt"
+
+  - name: "Privilege Escalation"
+    description: >-
+      Check sudo permissions for the current user. Exploit the ability to
+      run vim as root to spawn a root shell via a shell escape sequence.
+    tools_suggested:
+      - "sudo"
+      - "vim"
+      - "gtfobins"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Run 'sudo -l' to see what commands you can run as root."
+      - level: 2
+        text: "You can run vim as root. Vim supports executing shell commands from inside the editor."
+      - level: 3
+        text: "Run: sudo vim -c ':!/bin/bash' to get a root shell, then cat /root/root.txt"
+
+par_time_minutes: 20
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

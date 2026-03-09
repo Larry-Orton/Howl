@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  vpn-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vpn-gateway-bypass
+    ports:
+      - "1194:1194/udp"
+      - "443:443"
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    labels:
+      - "howl.target=vpn-gateway-bypass"
+      - "howl.difficulty=elite"

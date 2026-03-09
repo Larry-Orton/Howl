@@ -51,6 +51,7 @@ class Target(BaseModel):
     slug: str
     version: str = "1.0.0"
     difficulty: str  # "easy", "medium", "hard", "elite"
+    category: str = ""  # Injected from parent directory name
     description: str
     briefing: str = ""
     author: str = "howl-team"

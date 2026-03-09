@@ -1,0 +1,151 @@
+name: "Exposed Redis Unauthenticated"
+slug: "redis-unauth-rce"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A Redis instance exposed without authentication serves as the backend
+  for a web application. Enumerate stored data, then leverage Redis to
+  write an SSH authorized key for remote access and escalate to root.
+briefing: |
+  MISSION BRIEFING - OPERATION RED CACHE
+  ========================================
+
+  Agent, Cacheflow Analytics runs a web application backed by a Redis
+  data store. Our reconnaissance has determined that the Redis instance
+  on port 6379 is exposed to the network without any authentication,
+  a critical misconfiguration.
+
+  An unauthenticated Redis server is extremely dangerous. It allows
+  attackers to read all cached data, modify application state, and in
+  some cases write files to the filesystem, including SSH authorized
+  keys for direct shell access.
+
+  Your objectives:
+    1. Discover the Redis service and web application
+    2. Connect to Redis and enumerate stored data for sensitive info
+    3. Abuse Redis to write an SSH public key for the redis user
+    4. SSH in and escalate privileges to obtain the root flag
+
+  This is a classic cloud misconfiguration scenario. Exploit it.
+
+author: "howl-team"
+cves:
+  - "CWE-306"
+  - "CWE-732"
+tags:
+  - "redis"
+  - "unauthenticated"
+  - "ssh-key-injection"
+  - "privilege-escalation"
+  - "network-services"
+
+services:
+  - name: "redis"
+    port: 6379
+    protocol: "tcp"
+    description: "Redis data store (no authentication)"
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "Cacheflow Analytics web application"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover Redis on port 6379, a web application on
+      port 8080, and SSH on port 22. Identify that Redis requires no
+      authentication. The web application reveals information about its
+      Redis backend.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "redis-cli"
+    flag:
+      type: "stage"
+      path: "/var/www/app/.debug/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan all ports. Try connecting to Redis on 6379 without credentials."
+      - level: 2
+        text: "Use redis-cli -h target to connect. Run INFO to check the server status."
+      - level: 3
+        text: "Check the web app on 8080. There is a .debug directory with a recon flag."
+
+  - name: "Redis Data Enumeration"
+    description: >-
+      Connect to the unauthenticated Redis instance and enumerate all
+      stored keys. The application stores session data, cached credentials,
+      and configuration values that can be extracted.
+    tools_suggested:
+      - "redis-cli"
+      - "nmap"
+    flag:
+      type: "user"
+      path: "/home/redis/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Use redis-cli to connect and run KEYS * to list all stored keys."
+      - level: 2
+        text: "Look for keys containing 'admin', 'session', or 'creds'."
+      - level: 3
+        text: "Run: GET admin:credentials to find stored admin credentials for the web app."
+
+  - name: "SSH Key Injection via Redis"
+    description: >-
+      Abuse Redis CONFIG SET to change the database dump location to the
+      redis user's .ssh/authorized_keys file. Write your SSH public key
+      into Redis and trigger a save to gain SSH access as the redis user.
+    tools_suggested:
+      - "redis-cli"
+      - "ssh-keygen"
+      - "ssh"
+    flag:
+      type: "stage"
+      path: "/opt/cacheflow/ssh_flag.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Redis CONFIG SET allows changing the database file path. Target the .ssh/authorized_keys file."
+      - level: 2
+        text: "Generate an SSH key pair, then use Redis to write the public key to /home/redis/.ssh/authorized_keys."
+      - level: 3
+        text: >-
+          Run these Redis commands:
+          CONFIG SET dir /home/redis/.ssh
+          CONFIG SET dbfilename authorized_keys
+          SET sshkey "\\n\\n<your-public-key>\\n\\n"
+          SAVE
+          Then SSH in as redis user.
+
+  - name: "Privilege Escalation"
+    description: >-
+      As the redis user, enumerate the system for privilege escalation
+      vectors. Find and exploit a misconfigured SUID binary or sudo
+      permission to read the root flag.
+    tools_suggested:
+      - "find"
+      - "sudo"
+      - "linpeas"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Check sudo permissions and look for SUID binaries."
+      - level: 2
+        text: "Run sudo -l to see what commands the redis user can execute as root."
+      - level: 3
+        text: "The redis user can run /usr/bin/redis-cli as root. Use: sudo redis-cli -e cat /root/root.txt via the EVAL command."
+
+par_time_minutes: 35
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

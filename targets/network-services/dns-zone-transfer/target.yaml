@@ -1,0 +1,125 @@
+name: "DNS Zone Transfer Leak"
+slug: "dns-zone-transfer"
+version: "1.0.0"
+difficulty: "easy"
+description: >-
+  A DNS server misconfigured to allow zone transfers to any client. Perform
+  an AXFR query to discover hidden subdomains, then access a secret web
+  service to retrieve the flag.
+briefing: |
+  MISSION BRIEFING - OPERATION ZONE BREACH
+  ==========================================
+
+  Agent, Prism Networks operates a DNS infrastructure that our analysts
+  believe is misconfigured. The DNS server at port 53 manages the zone
+  for prismnet.local, and preliminary testing suggests it may permit
+  unrestricted zone transfers (AXFR).
+
+  A zone transfer would reveal the complete list of DNS records, including
+  internal hostnames and hidden services that are not meant to be publicly
+  accessible.
+
+  Your objectives:
+    1. Discover the DNS service and identify the zone it manages
+    2. Perform a zone transfer to enumerate all records and hidden subdomains
+    3. Access the hidden web service revealed by the zone transfer
+
+  Intelligence suggests there is a secret administration panel hidden
+  behind an internal hostname. Find it and extract the flag.
+
+author: "howl-team"
+cves:
+  - "CWE-200"
+  - "CWE-16"
+tags:
+  - "dns"
+  - "zone-transfer"
+  - "axfr"
+  - "information-disclosure"
+  - "network-services"
+
+services:
+  - name: "dns"
+    port: 53
+    protocol: "tcp/udp"
+    description: "BIND9 DNS server for prismnet.local"
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "Prism Networks public web page"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover the DNS server on port 53 and web service
+      on port 8080. Identify the domain name managed by the DNS server.
+      The public web page reveals the domain prismnet.local.
+    tools_suggested:
+      - "nmap"
+      - "dig"
+      - "nslookup"
+      - "curl"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan ports and visit the web page on 8080 to discover the domain name."
+      - level: 2
+        text: "The web page mentions prismnet.local. Try querying the DNS server for this domain."
+      - level: 3
+        text: "Use: dig @target prismnet.local ANY to see what records exist."
+
+  - name: "Zone Transfer"
+    description: >-
+      Perform a DNS zone transfer (AXFR) against the server to dump all
+      DNS records for the prismnet.local zone. Identify hidden subdomains
+      that are not publicly referenced.
+    tools_suggested:
+      - "dig"
+      - "dnsrecon"
+      - "fierce"
+      - "host"
+    flag:
+      type: "user"
+      path: "/opt/dns/zone_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "DNS zone transfers use the AXFR query type. Try it against the target DNS server."
+      - level: 2
+        text: "Use: dig @target prismnet.local AXFR to dump all zone records."
+      - level: 3
+        text: "The zone transfer reveals secret-admin.prismnet.local pointing to the same server. This is a hidden web service."
+
+  - name: "Hidden Service Access"
+    description: >-
+      Access the hidden web service discovered through the zone transfer.
+      The secret admin panel is served on port 8080 but requires the
+      correct Host header to respond. Retrieve the final flag.
+    tools_suggested:
+      - "curl"
+      - "browser"
+      - "burpsuite"
+    flag:
+      type: "root"
+      path: "/var/www/secret-admin/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "The hidden service responds only when accessed with the correct hostname."
+      - level: 2
+        text: "Use curl with a Host header: curl -H 'Host: secret-admin.prismnet.local' http://target:8080/"
+      - level: 3
+        text: "The secret admin page has a link to /flag. Access it with the same Host header to retrieve the root flag."
+
+par_time_minutes: 20
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

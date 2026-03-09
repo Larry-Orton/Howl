@@ -21,6 +21,7 @@ def render_score_dashboard(
     elite_score: int,
     achievements: list[dict],
     htb_completed: int = 0,
+    category_stats: list[dict] | None = None,
 ):
     """Render the full score dashboard."""
     rank = get_rank(total_score)
@@ -31,10 +32,27 @@ def render_score_dashboard(
         bar = f"[{color}]#[/{color}]" * filled + "[dim]-[/dim]" * (20 - filled)
         return bar
 
-    dashboard = (
-        f"  [bold]Total Score:[/bold]  [bold bright_yellow]{total_score:,}[/bold bright_yellow] pts\n"
-        f"  [bold]Rank:[/bold]         [bold bright_cyan]{rank}[/bold bright_cyan]\n"
-        f"\n"
+    # Category progress section
+    cat_section = ""
+    if category_stats:
+        cat_section = "  [bold]CATEGORIES[/bold]\n  ----------------\n"
+        for cat in category_stats:
+            color = cat["color"]
+            name = cat["name"]
+            completed = cat["completed"]
+            total = cat["total"]
+            score = cat["total_score"]
+            bar = progress_bar(completed, total, color)
+            score_str = f"{score:,} pts" if score > 0 else "--"
+            cat_section += (
+                f"  {bar}  [{color}]{name:<24}[/{color}] "
+                f"{completed}/{total}   [dim]{score_str}[/dim]\n"
+            )
+        cat_section += "\n"
+
+    # Difficulty breakdown
+    diff_section = (
+        f"  [bold]BY DIFFICULTY[/bold]\n  ----------------\n"
         f"  {progress_bar(easy_completed, 10, 'green')}  "
         f"[green]Easy[/green]    {easy_completed}/10   [dim]{easy_score:,} pts[/dim]\n"
         f"  {progress_bar(medium_completed, 10, 'yellow')}  "
@@ -43,6 +61,14 @@ def render_score_dashboard(
         f"[red]Hard[/red]    {hard_completed}/10   [dim]{hard_score:,} pts[/dim]\n"
         f"  {progress_bar(elite_completed, 10, 'magenta')}  "
         f"[magenta]Elite[/magenta]   {elite_completed}/10   [dim]{elite_score:,} pts[/dim]\n"
+    )
+
+    dashboard = (
+        f"  [bold]Total Score:[/bold]  [bold bright_yellow]{total_score:,}[/bold bright_yellow] pts\n"
+        f"  [bold]Rank:[/bold]         [bold bright_cyan]{rank}[/bold bright_cyan]\n"
+        f"\n"
+        f"{cat_section}"
+        f"{diff_section}"
     )
 
     if htb_completed > 0:

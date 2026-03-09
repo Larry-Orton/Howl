@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  kernel-dirtypipe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: howl-kernel-dirtypipe
+    ports:
+      - "22:22"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=kernel-dirtypipe"
+      - "howl.difficulty=elite"

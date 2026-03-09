@@ -1,0 +1,153 @@
+name: "GraphQL Introspection & Injection"
+slug: "graphql-introspection"
+difficulty: "hard"
+description: >
+  A GraphQL API with introspection left enabled in production and a vulnerable
+  query resolver that is susceptible to SQL injection. Attackers can use
+  introspection to map the entire schema, discover hidden queries and mutations,
+  then exploit the injectable search query to extract admin credentials and flags.
+briefing: |
+  MISSION BRIEFING - OPERATION DEEP QUERY
+  =========================================
+
+  Intelligence has identified "AssetDB" - an asset management system using
+  a GraphQL API. The development team left introspection enabled in production,
+  exposing the entire API schema to unauthenticated users.
+
+  Furthermore, one of the query resolvers constructs SQL queries by directly
+  concatenating user input, making it vulnerable to SQL injection. The backend
+  uses SQLite, and the injection point can be exploited to dump the entire
+  database including admin credentials and flags.
+
+  PHASE 1 - RECONNAISSANCE
+    Discover the GraphQL endpoint and confirm it accepts queries. GraphQL
+    APIs typically listen on /graphql and accept POST requests with a JSON
+    body containing a "query" field.
+
+  PHASE 2 - INTROSPECTION
+    Use GraphQL introspection queries to map the complete schema. Discover
+    all types, queries, mutations, and fields. Identify interesting queries
+    that may contain vulnerabilities.
+
+  PHASE 3 - SQL INJECTION
+    Exploit the vulnerable search query by injecting SQL through the query
+    argument. The resolver uses string concatenation to build SQL queries
+    against a SQLite database. Use UNION-based injection to extract data
+    from other tables.
+
+  PHASE 4 - CREDENTIAL EXTRACTION
+    Use SQL injection to dump the admin credentials table and extract the
+    root flag. The flag is stored in a hidden 'secrets' table in the
+    SQLite database.
+
+  Good luck, operator.
+author: "howl-team"
+cves:
+  - "CWE-200"
+  - "CWE-89"
+tags:
+  - "graphql"
+  - "introspection"
+  - "sql-injection"
+  - "information-disclosure"
+  - "api"
+services:
+  - name: "graphql"
+    port: 4000
+    protocol: "http"
+    description: "AssetDB - GraphQL asset management API"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >
+      Discover the GraphQL API endpoint. Send test queries to confirm the
+      endpoint accepts GraphQL operations. Identify the technology stack
+      and verify that the API responds to standard GraphQL conventions.
+    tools_suggested:
+      - "curl"
+      - "nmap"
+      - "nikto"
+      - "graphql-voyager"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "GraphQL APIs typically listen on /graphql. Send a POST request with Content-Type: application/json and body {\"query\": \"{ __typename }\"}."
+      - level: 2
+        text: "The endpoint responds to queries at POST /graphql. Try sending a simple query like {\"query\": \"{ status }\"} to confirm."
+      - level: 3
+        text: "curl -X POST http://target:4000/graphql -H 'Content-Type: application/json' -d '{\"query\": \"{ status }\"}' returns the API status including a recon flag."
+
+  - name: "Schema Introspection"
+    description: >
+      Use GraphQL's built-in introspection system to map the entire API
+      schema. Discover all query types, mutation types, and their arguments.
+      Identify potentially vulnerable queries like 'searchAssets' which
+      accepts a string search parameter.
+    tools_suggested:
+      - "curl"
+      - "graphql-voyager"
+      - "burpsuite"
+      - "python3"
+    flag:
+      type: "stage"
+      path: "/opt/secrets/introspection_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Send the standard introspection query: {\"query\": \"{ __schema { queryType { name } types { name fields { name args { name type { name } } } } } }\"}."
+      - level: 2
+        text: "The schema reveals queries: 'status', 'assets', 'searchAssets(search: String!)', 'asset(id: Int!)'. The searchAssets query takes raw string input."
+      - level: 3
+        text: "Full introspection: {\"query\": \"{__schema{types{name fields{name type{name} args{name type{name}}}}}}\"}. The searchAssets query's 'search' argument is injectable."
+
+  - name: "SQL Injection"
+    description: >
+      Exploit the SQL injection vulnerability in the searchAssets query.
+      The resolver concatenates the search parameter directly into a SQL
+      query. Use UNION-based injection to extract data from other database
+      tables, including user credentials.
+    tools_suggested:
+      - "curl"
+      - "sqlmap"
+      - "python3"
+      - "burpsuite"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 125
+    hints:
+      - level: 1
+        text: "The searchAssets query is vulnerable: try {\"query\": \"{ searchAssets(search: \\\"' OR 1=1--\\\") { name } }\"}."
+      - level: 2
+        text: "Use UNION injection to find table names: search: \"' UNION SELECT name,sql,null,null FROM sqlite_master--\". This reveals all tables including 'users' and 'secrets'."
+      - level: 3
+        text: "Extract user data: search: \"' UNION SELECT username,password,email,role FROM users--\" dumps all credentials. The admin password hash is visible."
+
+  - name: "Root Flag Extraction"
+    description: >
+      Use SQL injection to dump the hidden 'secrets' table which contains
+      the root flag. The table was created by the admin for storing sensitive
+      configuration values.
+    tools_suggested:
+      - "curl"
+      - "python3"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "The sqlite_master dump revealed a 'secrets' table. Query it with UNION injection."
+      - level: 2
+        text: "search: \"' UNION SELECT key,value,null,null FROM secrets--\" dumps all secrets including the root flag."
+      - level: 3
+        text: "The secrets table has columns (key, value). The root flag is stored with key='root_flag'. UNION SELECT key,value,null,null FROM secrets-- extracts it."
+
+par_time_minutes: 60
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

@@ -1,0 +1,143 @@
+name: "SNMP Community String Leak"
+slug: "snmp-community-leak"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A network device running SNMP v2c with the default community string
+  "public". Walk the SNMP MIB tree to extract system information including
+  embedded credentials, then use them to gain shell access.
+briefing: |
+  MISSION BRIEFING - OPERATION COMMUNITY WATCH
+  ==============================================
+
+  Agent, Sentinel Networking operates a fleet of managed devices. Our
+  reconnaissance indicates at least one device is running SNMP (Simple
+  Network Management Protocol) on port 161 with the default community
+  string still in place.
+
+  SNMP is a goldmine for attackers when misconfigured. The MIB tree can
+  expose system details, running processes, network configuration, and
+  sometimes even credentials embedded in custom OIDs or descriptions.
+
+  Your objectives:
+    1. Discover the SNMP service and confirm the default community string
+    2. Walk the SNMP MIB tree and enumerate all available data
+    3. Extract credentials from SNMP data
+    4. Use the credentials to gain SSH access to the system
+
+  SNMP enumeration is a cornerstone of network penetration testing.
+  Show us what you can extract from this misconfigured device.
+
+author: "howl-team"
+cves:
+  - "CWE-1391"
+  - "CWE-200"
+tags:
+  - "snmp"
+  - "community-string"
+  - "information-disclosure"
+  - "default-credentials"
+  - "network-services"
+
+services:
+  - name: "snmp"
+    port: 161
+    protocol: "udp"
+    description: "SNMP v2c with default community string"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "Sentinel Networking device status page"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover open ports. Note the SNMP service on
+      UDP port 161 and the web status page on port 8080. The status page
+      confirms the device is running SNMP for monitoring.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+    flag:
+      type: "stage"
+      path: "/opt/sentinel/.monitoring/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Remember to scan UDP ports as well. SNMP runs on UDP 161."
+      - level: 2
+        text: "Use nmap -sU -p161 target to check for SNMP, and -sV for version detection."
+      - level: 3
+        text: "The web dashboard at port 8080 confirms SNMP is active and the community string has not been changed."
+
+  - name: "SNMP Enumeration"
+    description: >-
+      Use the default community string 'public' to walk the SNMP MIB tree.
+      Enumerate system information, network interfaces, running processes,
+      and any custom OIDs that may contain sensitive data.
+    tools_suggested:
+      - "snmpwalk"
+      - "snmp-check"
+      - "onesixtyone"
+      - "snmpbulkwalk"
+    flag:
+      type: "user"
+      path: "/home/snmpuser/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Try: snmpwalk -v2c -c public target to walk the entire MIB tree."
+      - level: 2
+        text: "Pay attention to system description strings and contact information OIDs."
+      - level: 3
+        text: "The sysContact OID contains an email, and the sysLocation contains a note about default SSH credentials."
+
+  - name: "Credential Extraction"
+    description: >-
+      Analyze the SNMP data carefully. Credentials are embedded in the
+      device configuration exposed through SNMP, including within process
+      listings and custom description fields.
+    tools_suggested:
+      - "snmpwalk"
+      - "grep"
+    flag:
+      type: "stage"
+      path: "/opt/sentinel/config_flag.txt"
+    points: 125
+    hints:
+      - level: 1
+        text: "Look through the SNMP output for anything resembling a username and password."
+      - level: 2
+        text: "Check the hrSWRunParameters OID tree for running processes and their arguments."
+      - level: 3
+        text: "A monitoring script is running with credentials in its arguments: netmon/S3nt1n3lM0n!2024"
+
+  - name: "SSH Access"
+    description: >-
+      Use the credentials extracted from SNMP to authenticate to the
+      SSH service. Once logged in, locate the final root flag.
+    tools_suggested:
+      - "ssh"
+      - "sudo"
+      - "find"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "SSH into the system using the netmon credentials discovered via SNMP."
+      - level: 2
+        text: "Check sudo permissions: sudo -l"
+      - level: 3
+        text: "The netmon user can run /usr/bin/find as root. Use: sudo find /root -name root.txt -exec cat {} \\;"
+
+par_time_minutes: 30
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

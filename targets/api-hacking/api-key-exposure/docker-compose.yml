@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  datadash:
+    build: .
+    ports:
+      - "8080:8080"
+      - "3000:3000"
+    restart: unless-stopped
+    labels:
+      - "howl.target=api-key-exposure"
+      - "howl.difficulty=easy"
+    environment:
+      - FLASK_ENV=production

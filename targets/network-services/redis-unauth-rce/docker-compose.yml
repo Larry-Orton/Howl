@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  redis-unauth-rce:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: redis-unauth-rce
+    ports:
+      - "6379:6379"
+      - "8080:8080"
+      - "22:22"
+    restart: unless-stopped
+    labels:
+      - "howl.target=redis-unauth-rce"
+      - "howl.difficulty=medium"

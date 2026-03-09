@@ -10,6 +10,14 @@ class Difficulty(str, Enum):
     ELITE = "elite"
 
 
+class Category(str, Enum):
+    WEB_EXPLOITATION = "web-exploitation"
+    NETWORK_SERVICES = "network-services"
+    PRIVILEGE_ESCALATION = "privilege-escalation"
+    API_HACKING = "api-hacking"
+    CRYPTOGRAPHY_SECRETS = "cryptography-secrets"
+
+
 class SessionStatus(str, Enum):
     ACTIVE = "active"
     PAUSED = "paused"
@@ -35,6 +43,38 @@ DIFFICULTY_ICONS = {
     Difficulty.MEDIUM: "[yellow]*[/yellow]",
     Difficulty.HARD: "[red]*[/red]",
     Difficulty.ELITE: "[magenta]*[/magenta]",
+}
+
+CATEGORY_COLORS = {
+    Category.WEB_EXPLOITATION: "red",
+    Category.NETWORK_SERVICES: "blue",
+    Category.PRIVILEGE_ESCALATION: "yellow",
+    Category.API_HACKING: "cyan",
+    Category.CRYPTOGRAPHY_SECRETS: "magenta",
+}
+
+CATEGORY_ICONS = {
+    Category.WEB_EXPLOITATION: "W",
+    Category.NETWORK_SERVICES: "N",
+    Category.PRIVILEGE_ESCALATION: "P",
+    Category.API_HACKING: "A",
+    Category.CRYPTOGRAPHY_SECRETS: "C",
+}
+
+CATEGORY_DISPLAY_NAMES = {
+    Category.WEB_EXPLOITATION: "Web Exploitation",
+    Category.NETWORK_SERVICES: "Network Services",
+    Category.PRIVILEGE_ESCALATION: "Privilege Escalation",
+    Category.API_HACKING: "API Hacking",
+    Category.CRYPTOGRAPHY_SECRETS: "Cryptography & Secrets",
+}
+
+CATEGORY_DESCRIPTIONS = {
+    Category.WEB_EXPLOITATION: "SQLi, XSS, SSRF, file uploads, command injection, LFI, deserialization",
+    Category.NETWORK_SERVICES: "FTP, SMB, SSH, Redis, SNMP, DNS, NFS, pivoting",
+    Category.PRIVILEGE_ESCALATION: "SUID, sudo, cron, PATH injection, capabilities, Docker escape, kernel",
+    Category.API_HACKING: "IDOR, JWT, GraphQL, mass assignment, CORS, OAuth, broken auth",
+    Category.CRYPTOGRAPHY_SECRETS: "Hardcoded creds, .env exposure, git leaks, padding oracle, weak hashing",
 }
 
 STATUS_ICONS = {

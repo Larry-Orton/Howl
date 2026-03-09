@@ -1,0 +1,171 @@
+name: "Certificate Key Extraction"
+slug: "cert-key-extraction"
+version: "1.0.0"
+difficulty: "elite"
+description: >-
+  A dual HTTPS service with an extractable TLS private key. The main
+  application runs on port 443 while an internal management API runs
+  on port 8443. The private key is exposed through a misconfigured
+  endpoint, allowing traffic decryption or MITM attacks to extract
+  root credentials.
+briefing: |
+  MISSION BRIEFING - OPERATION KEY HARVEST
+  ==========================================
+
+  Agent, IronGate Security (ironic name) operates a dual HTTPS
+  infrastructure:
+
+    - Port 443: Public-facing web application
+    - Port 8443: Internal management API
+
+  Both services use TLS certificates for encryption, but intelligence
+  suggests the private key is accessible through a misconfigured
+  endpoint on the management API. If you can extract the private key,
+  you can decrypt captured TLS traffic or perform a man-in-the-middle
+  attack to intercept credentials.
+
+  The management API periodically sends encrypted credentials that
+  you can capture and decrypt once you have the key.
+
+  Your objectives:
+    1. Discover both HTTPS services and enumerate endpoints
+    2. Analyze the TLS certificate for weaknesses
+    3. Find and extract the exposed private key
+    4. Decrypt captured traffic or perform MITM to get credentials
+    5. Use extracted credentials to access the root flag
+
+  Good luck, agent. This is an elite-level engagement.
+
+author: "howl-team"
+cves:
+  - "CWE-321"
+tags:
+  - "tls"
+  - "certificate"
+  - "private-key"
+  - "mitm"
+  - "traffic-decryption"
+  - "cryptography"
+  - "elite"
+
+services:
+  - name: "webapp"
+    port: 443
+    protocol: "tcp"
+    description: "IronGate Public Portal (HTTPS/Flask)"
+  - name: "management"
+    port: 8443
+    protocol: "tcp"
+    description: "IronGate Management API (HTTPS/Flask)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Discover both HTTPS services, enumerate their endpoints, and
+      gather information about the TLS configuration.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "sslscan"
+      - "sslyze"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.irongate/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan both port 443 and port 8443 for HTTPS services."
+      - level: 2
+        text: "Use sslscan or openssl to examine the TLS certificates on both ports."
+      - level: 3
+        text: "Enumerate the management API on port 8443 for debug and admin endpoints."
+
+  - name: "Certificate Analysis"
+    description: >-
+      Examine the TLS certificate to understand the key type, issuer,
+      and any embedded information useful for the attack.
+    tools_suggested:
+      - "openssl"
+      - "sslscan"
+      - "sslyze"
+    flag:
+      type: "stage"
+      path: "/opt/irongate/cert_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Use openssl s_client to connect and examine the certificate."
+      - level: 2
+        text: "openssl s_client -connect <target>:443 | openssl x509 -text shows cert details."
+      - level: 3
+        text: "The certificate is self-signed with interesting Subject fields hinting at the key location."
+
+  - name: "Private Key Extraction"
+    description: >-
+      Find the exposed private key through the misconfigured management
+      API endpoint and download it.
+    tools_suggested:
+      - "curl"
+      - "gobuster"
+      - "openssl"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "The management API on 8443 has debug endpoints that may expose sensitive files."
+      - level: 2
+        text: "Try /debug/certs or /api/backup/keys on the management API."
+      - level: 3
+        text: "Access https://<target>:8443/debug/private-key to download the TLS private key."
+
+  - name: "Traffic Decryption"
+    description: >-
+      Use the extracted private key to decrypt captured TLS traffic
+      or perform a MITM attack. The management API has an endpoint
+      that simulates encrypted credential exchange.
+    tools_suggested:
+      - "wireshark"
+      - "mitmproxy"
+      - "openssl"
+      - "python"
+    flag:
+      type: "stage"
+      path: "/opt/irongate/decrypt_flag.txt"
+    points: 250
+    hints:
+      - level: 1
+        text: "The /api/internal/credential-exchange endpoint sends encrypted credentials."
+      - level: 2
+        text: "The credentials are RSA-encrypted with the server's public key. Decrypt with private key."
+      - level: 3
+        text: "Use openssl rsautl -decrypt -inkey server.key to decrypt the credential blob."
+
+  - name: "Root Access"
+    description: >-
+      Use the decrypted credentials to access the root-level admin
+      interface and retrieve the final flag.
+    tools_suggested:
+      - "curl"
+      - "browser"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 300
+    hints:
+      - level: 1
+        text: "The decrypted credentials are for the root admin account."
+      - level: 2
+        text: "Use the credentials on the /admin/root endpoint on port 443."
+      - level: 3
+        text: "Log in at https://<target>/admin/root with the decrypted root credentials."
+
+par_time_minutes: 75
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true
+  post_start:
+    - container: "webapp"
+      command: "bash /app/init_certs.sh"

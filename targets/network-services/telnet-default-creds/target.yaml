@@ -1,0 +1,121 @@
+name: "Telnet Default Credentials"
+slug: "telnet-default-creds"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A network device management interface exposed via telnet with factory
+  default credentials. Login, enumerate the system, and find a hidden
+  flag buried in the configuration.
+briefing: |
+  MISSION BRIEFING - OPERATION FACTORY RESET
+  ============================================
+
+  Agent, our network reconnaissance has identified what appears to be a
+  network appliance belonging to GridIron Industrial, a power grid
+  management company. The device exposes both a telnet management interface
+  on port 23 and a web status dashboard on port 8080.
+
+  Many industrial devices ship with default credentials that administrators
+  never bother to change. Common pairs include admin/admin, root/root, and
+  manufacturer-specific defaults.
+
+  Your objectives:
+    1. Discover the telnet service and web dashboard
+    2. Authenticate to telnet using default or weak credentials
+    3. Enumerate the system and locate the hidden flag in the device config
+
+  Industrial control systems are high-value targets. If they left default
+  credentials in place, who knows what else they forgot to secure.
+
+author: "howl-team"
+cves:
+  - "CWE-1392"
+  - "CWE-798"
+tags:
+  - "telnet"
+  - "default-credentials"
+  - "weak-passwords"
+  - "network-services"
+  - "enumeration"
+
+services:
+  - name: "telnet"
+    port: 23
+    protocol: "tcp"
+    description: "Telnet management interface"
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "GridIron device web dashboard"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover the telnet service on port 23 and
+      web dashboard on port 8080. The web dashboard reveals device
+      information and hints at the manufacturer's default credentials.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "nikto"
+    flag:
+      type: "stage"
+      path: "/opt/device/.system/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Scan for all open ports and examine the web dashboard for device information."
+      - level: 2
+        text: "The web dashboard on port 8080 identifies the device model. Search for default credentials."
+      - level: 3
+        text: "Check the HTML source of the dashboard page. A comment mentions the default login for GridIron GX-3000 devices."
+
+  - name: "Telnet Authentication"
+    description: >-
+      Connect to the telnet service and authenticate using the default
+      or commonly known credentials for this device type. The device
+      uses a simple command-line interface once logged in.
+    tools_suggested:
+      - "telnet"
+      - "hydra"
+      - "medusa"
+      - "ncrack"
+    flag:
+      type: "user"
+      path: "/home/operator/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Try common default credential pairs: admin/admin, root/root, operator/operator."
+      - level: 2
+        text: "The GridIron GX-3000 uses operator/Gr1dIr0n as default credentials."
+      - level: 3
+        text: "Connect with: telnet target 23, then login as operator with password Gr1dIr0n"
+
+  - name: "System Enumeration & Flag"
+    description: >-
+      Once logged in via telnet, enumerate the system to find sensitive
+      files and configurations. The flag is hidden in a device configuration
+      backup file that requires careful searching.
+    tools_suggested:
+      - "find"
+      - "grep"
+      - "cat"
+      - "ls"
+    flag:
+      type: "root"
+      path: "/opt/device/backups/.config_backup/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Search the filesystem for configuration files and backups."
+      - level: 2
+        text: "Look in /opt/device/ for backup directories. Hidden directories start with a dot."
+      - level: 3
+        text: "The flag is at /opt/device/backups/.config_backup/root.txt. Use: find /opt -name 'root.txt' 2>/dev/null"
+
+par_time_minutes: 25
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

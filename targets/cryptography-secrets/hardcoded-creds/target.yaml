@@ -1,0 +1,121 @@
+name: "Hardcoded Credentials in Source"
+slug: "hardcoded-creds"
+version: "1.0.0"
+difficulty: "easy"
+description: >-
+  A corporate inventory management system with database credentials
+  hardcoded directly in the application source code. Discover the
+  exposed source, extract the credentials, and use them to access the
+  backend database containing the flag.
+briefing: |
+  MISSION BRIEFING - OPERATION OPEN BOOK
+  ========================================
+
+  Agent, we have identified a web application belonging to Vantage
+  Industries, a logistics firm running an internal inventory tracker
+  at port 8080. Intelligence suggests their development team committed
+  a cardinal sin -- hardcoding database credentials in the application
+  source code.
+
+  A MySQL database service is also running on port 3306. If you can
+  recover the credentials from the source, you should be able to access
+  the database directly.
+
+  Your objectives:
+    1. Enumerate the target and discover exposed configuration or source files
+    2. Extract the hardcoded database credentials
+    3. Connect to the database and retrieve the flag
+
+  Good luck, agent. Careless developers make for easy targets.
+
+author: "howl-team"
+cves:
+  - "CWE-798"
+tags:
+  - "hardcoded-credentials"
+  - "source-code-exposure"
+  - "database"
+  - "mysql"
+  - "cryptography"
+  - "secrets-management"
+
+services:
+  - name: "webapp"
+    port: 8080
+    protocol: "tcp"
+    description: "Vantage Industries Inventory Tracker (Flask)"
+  - name: "mysql"
+    port: 3306
+    protocol: "tcp"
+    description: "MySQL Database Server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover exposed source code files or
+      configuration endpoints that should not be publicly accessible.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "dirb"
+      - "nikto"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Run a directory scan against the web server on port 8080."
+      - level: 2
+        text: "Try wordlists that include common development files like .py, .bak, and config paths."
+      - level: 3
+        text: "Access /debug/source to view the application source code directly."
+
+  - name: "Credential Extraction"
+    description: >-
+      Examine the exposed source code or configuration files to find
+      hardcoded database credentials.
+    tools_suggested:
+      - "curl"
+      - "browser"
+      - "grep"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Look carefully at the source code for database connection strings."
+      - level: 2
+        text: "The DB_PASSWORD variable is defined as a string literal in the Python source."
+      - level: 3
+        text: "The credentials are: user=inventory_admin, password=V@ntage_S3cret!2024, database=inventory."
+
+  - name: "Database Access"
+    description: >-
+      Use the extracted credentials to connect to the MySQL database
+      on port 3306 and retrieve the final flag from the secrets table.
+    tools_suggested:
+      - "mysql"
+      - "mysql-client"
+      - "dbeaver"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Use the mysql command-line client to connect with the discovered credentials."
+      - level: 2
+        text: "Try: mysql -h <target> -u inventory_admin -p'V@ntage_S3cret!2024' inventory"
+      - level: 3
+        text: "Run: SELECT * FROM secrets; -- the flag is stored in the secret_value column."
+
+par_time_minutes: 25
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true
+  post_start:
+    - container: "webapp"
+      command: "python /app/init_db.py"

@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  wildcard-tar-privesc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: howl-wildcard-tar-privesc
+    ports:
+      - "22:22"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=wildcard-tar-privesc"
+      - "howl.difficulty=hard"

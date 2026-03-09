@@ -1,0 +1,120 @@
+name: "SUID Binary Exploitation"
+slug: "suid-binary-abuse"
+version: "1.0.0"
+difficulty: "easy"
+description: >-
+  A Linux system contains a misconfigured SUID binary that can be leveraged
+  by a low-privileged user to read files owned by root. Gain initial access
+  through a vulnerable web application, then escalate privileges by abusing
+  the SUID binary to capture the root flag.
+briefing: |
+  MISSION BRIEFING - OPERATION STICKY BIT
+  =========================================
+
+  Agent, we have identified a server belonging to SysCorp Industries, a
+  small hosting company with a history of sloppy system administration.
+
+  Our reconnaissance team discovered a web-based employee portal running on
+  the target. The portal appears to have default credentials that were never
+  changed after deployment.
+
+  More importantly, intelligence suggests that a system administrator set
+  the SUID bit on a common utility during a late-night troubleshooting
+  session and forgot to remove it. This misconfiguration may allow any user
+  to execute the binary with root privileges.
+
+  Your objectives:
+    1. Enumerate the web application and locate valid credentials
+    2. Use the discovered credentials to gain SSH access as a low-privilege user
+    3. Identify and exploit the SUID binary to escalate to root
+
+  Move quickly, agent. This should be a straightforward operation.
+
+author: "howl-team"
+cves:
+  - "CWE-269"
+tags:
+  - "suid"
+  - "privilege-escalation"
+  - "linux"
+  - "web"
+  - "ssh"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "SysCorp employee portal (Flask)"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Enumerate the web application on port 8080. Discover the employee
+      portal and locate credentials exposed in the application source or
+      default login page.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "browser"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Start with a port scan to identify running services on the target."
+      - level: 2
+        text: "Visit the web application on port 8080 and look at the page source."
+      - level: 3
+        text: "Check HTML comments and hidden elements on the login page for leaked credentials."
+
+  - name: "Initial Access"
+    description: >-
+      Use the credentials discovered on the web application to log in via
+      SSH as the low-privileged user. Retrieve the user flag from the home
+      directory.
+    tools_suggested:
+      - "ssh"
+      - "cat"
+    flag:
+      type: "user"
+      path: "/home/jmartinez/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "The web app reveals credentials for an SSH user. Try logging in via SSH on port 22."
+      - level: 2
+        text: "Use the credentials: jmartinez / Syscorp2024! to SSH into the target."
+      - level: 3
+        text: "Once logged in, read the flag: cat ~/user.txt"
+
+  - name: "Privilege Escalation"
+    description: >-
+      Enumerate the system for SUID binaries. A common utility has the SUID
+      bit set, allowing it to run with root privileges. Use it to read the
+      root flag.
+    tools_suggested:
+      - "find"
+      - "gtfobins"
+      - "linpeas"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Search for binaries with the SUID bit set: find / -perm -4000 -type f 2>/dev/null"
+      - level: 2
+        text: "The 'find' command has the SUID bit set. Check GTFOBins for abuse techniques."
+      - level: 3
+        text: "Run: find /root/root.txt -exec cat {} \\; to read the root flag with elevated privileges."
+
+par_time_minutes: 25
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

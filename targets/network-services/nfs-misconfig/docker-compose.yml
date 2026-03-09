@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  nfs-misconfig:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nfs-misconfig
+    ports:
+      - "2049:2049"
+      - "111:111"
+      - "22:22"
+    privileged: true
+    restart: unless-stopped
+    labels:
+      - "howl.target=nfs-misconfig"
+      - "howl.difficulty=hard"

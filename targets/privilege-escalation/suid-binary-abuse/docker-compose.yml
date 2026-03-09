@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  suid-binary-abuse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: howl-suid-binary-abuse
+    ports:
+      - "22:22"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=suid-binary-abuse"
+      - "howl.difficulty=easy"

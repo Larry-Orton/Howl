@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  path-injection-privesc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: howl-path-injection-privesc
+    ports:
+      - "22:22"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=path-injection-privesc"
+      - "howl.difficulty=medium"

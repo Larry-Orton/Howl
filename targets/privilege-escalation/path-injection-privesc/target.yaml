@@ -1,0 +1,122 @@
+name: "PATH Injection"
+slug: "path-injection-privesc"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A custom SUID script calls a system utility without specifying its full
+  path. By manipulating the PATH environment variable, a low-privileged
+  user can hijack the command resolution and execute arbitrary code with
+  root privileges.
+briefing: |
+  MISSION BRIEFING - OPERATION DETOUR
+  =====================================
+
+  Agent, we have identified a development server belonging to PathFinder
+  Technologies, a software consulting company. Their sysadmin created a
+  custom backup utility with the SUID bit set so that any user can run
+  system diagnostics.
+
+  However, the script invokes system commands using relative names (e.g.,
+  "date" instead of "/usr/bin/date"). When a SUID script uses relative
+  command names, an attacker can prepend a malicious directory to the PATH
+  variable, causing the script to execute an attacker-controlled binary
+  instead of the legitimate system command.
+
+  A web application on the target exposes employee credentials through an
+  insecure configuration endpoint.
+
+  Your objectives:
+    1. Enumerate the web app and find valid credentials
+    2. SSH into the target and discover the vulnerable SUID script
+    3. Exploit PATH injection to escalate to root
+
+  Watch your step, agent. The path to root is not always straightforward.
+
+author: "howl-team"
+cves:
+  - "CWE-426"
+tags:
+  - "path-injection"
+  - "suid"
+  - "privilege-escalation"
+  - "linux"
+  - "ssh"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "PathFinder Technologies internal portal (Flask)"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web application. Find a configuration
+      or admin endpoint that leaks credentials.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "gobuster"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Port scan the target and enumerate the web application on port 8080."
+      - level: 2
+        text: "Look for a /config or /setup page on the web application."
+      - level: 3
+        text: "The /config endpoint reveals SSH credentials and references internal flag paths."
+
+  - name: "Initial Access"
+    description: >-
+      Use discovered credentials to SSH into the target. Enumerate
+      the filesystem for SUID binaries and custom scripts.
+    tools_suggested:
+      - "ssh"
+      - "find"
+      - "cat"
+    flag:
+      type: "user"
+      path: "/home/pathuser/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "SSH into the target with the credentials found on the web app."
+      - level: 2
+        text: "Use pathuser:P4thF1nd3r_2024 to log in. Check your home directory."
+      - level: 3
+        text: "cat ~/user.txt for the user flag. Then search for SUID binaries: find / -perm -4000 2>/dev/null"
+
+  - name: "Privilege Escalation"
+    description: >-
+      Identify the custom SUID script that calls system commands without
+      full paths. Create a malicious binary in a writable directory and
+      prepend it to PATH to hijack the command execution.
+    tools_suggested:
+      - "find"
+      - "strings"
+      - "cat"
+      - "gtfobins"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Look for custom SUID binaries or scripts. Read the source to find relative command calls."
+      - level: 2
+        text: "The script /usr/local/bin/sysinfo has SUID set and calls 'date' without a full path."
+      - level: 3
+        text: "Create /tmp/date with '#!/bin/bash\\ncat /root/root.txt', chmod +x it, then run PATH=/tmp:$PATH /usr/local/bin/sysinfo"
+
+par_time_minutes: 30
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

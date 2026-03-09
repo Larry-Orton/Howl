@@ -1,0 +1,112 @@
+name: "Predictable Session Tokens"
+slug: "predictable-sessions"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A web application that generates session tokens using a predictable
+  algorithm based on sequential user IDs and timestamps. Analyze the
+  token generation pattern, predict the admin session token, and
+  hijack the admin session.
+briefing: |
+  MISSION BRIEFING - OPERATION TOKEN FORGE
+  ==========================================
+
+  Agent, QuickBoard Inc. is running a project dashboard on port 8080.
+  We believe their session token generation is fatally flawed -- the
+  tokens appear to be based on predictable values like user IDs and
+  timestamps rather than cryptographically secure random numbers.
+
+  If you can register an account, analyze how tokens are generated,
+  and predict the admin's token, you can hijack their session and
+  gain full admin access.
+
+  Your objectives:
+    1. Discover the application and analyze the session token format
+    2. Predict the admin's session token based on the observed pattern
+    3. Use the predicted token to access the admin panel
+
+  Good luck, agent. Predictability is the enemy of security.
+
+author: "howl-team"
+cves:
+  - "CWE-330"
+tags:
+  - "predictable-tokens"
+  - "session-hijacking"
+  - "weak-randomness"
+  - "cryptography"
+  - "authentication"
+
+services:
+  - name: "webapp"
+    port: 8080
+    protocol: "tcp"
+    description: "QuickBoard Project Dashboard (Flask)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Discover the web application, register an account, and analyze
+      the format of the session token assigned to your account.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "curl"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.status/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Register an account and examine the session cookie value."
+      - level: 2
+        text: "The token looks like a hex-encoded value. Try decoding it."
+      - level: 3
+        text: "The token is MD5(user_id + ':' + creation_timestamp). Register multiple accounts to confirm."
+
+  - name: "Token Prediction"
+    description: >-
+      Determine the token generation algorithm by registering multiple
+      accounts and comparing tokens. Then predict the admin's token.
+    tools_suggested:
+      - "python"
+      - "burpsuite"
+      - "cyberchef"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Admin is user_id=1. The creation timestamp may be exposed somewhere."
+      - level: 2
+        text: "Check /api/status endpoint for system information including start time."
+      - level: 3
+        text: "Token = MD5('1:' + startup_timestamp). Compute it and set your session cookie."
+
+  - name: "Admin Panel Access"
+    description: >-
+      Use the predicted admin session token to hijack the admin session
+      and access the admin panel containing the root flag.
+    tools_suggested:
+      - "curl"
+      - "browser"
+      - "burpsuite"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Set your session_token cookie to the predicted admin token."
+      - level: 2
+        text: "Use curl with -b 'session_token=<predicted_token>' to access /admin."
+      - level: 3
+        text: "Compute MD5('1:<startup_ts>'), set it as session_token cookie, then visit /admin."
+
+par_time_minutes: 35
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

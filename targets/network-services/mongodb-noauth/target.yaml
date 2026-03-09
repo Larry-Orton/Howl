@@ -1,0 +1,127 @@
+name: "MongoDB No-Auth Database"
+slug: "mongodb-noauth"
+version: "1.0.0"
+difficulty: "hard"
+description: >-
+  A MongoDB instance exposed without authentication serves as the backend
+  for a Node.js web application. Connect directly to MongoDB, enumerate
+  databases, extract admin credentials, and access the web admin panel
+  to retrieve the flag.
+briefing: |
+  MISSION BRIEFING - OPERATION OPEN DOCUMENT
+  ============================================
+
+  Agent, DataPulse Inc. operates a web analytics platform at port 3000
+  backed by a MongoDB database. Our network scan has revealed that the
+  MongoDB instance on port 27017 is bound to all interfaces without
+  any authentication enabled.
+
+  MongoDB without authentication is a catastrophic misconfiguration.
+  Millions of databases have been breached this way, exposing user data,
+  credentials, and proprietary information.
+
+  Your objectives:
+    1. Discover the MongoDB service and web application
+    2. Connect to MongoDB directly and enumerate all databases and collections
+    3. Extract admin credentials and use them to access the web app admin panel
+
+  The web application has an admin panel that is normally protected by
+  login. With the database credentials in hand, you should be able to
+  walk right in and access the crown jewels.
+
+  Be thorough in your enumeration. There may be multiple databases and
+  collections worth examining.
+
+author: "howl-team"
+cves:
+  - "CWE-306"
+  - "CWE-522"
+tags:
+  - "mongodb"
+  - "nosql"
+  - "unauthenticated"
+  - "credential-extraction"
+  - "network-services"
+  - "database"
+
+services:
+  - name: "mongodb"
+    port: 27017
+    protocol: "tcp"
+    description: "MongoDB instance (no authentication)"
+  - name: "web"
+    port: 3000
+    protocol: "tcp"
+    description: "DataPulse Analytics web application"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover MongoDB on port 27017 and the web
+      application on port 3000. Identify that MongoDB allows unauthenticated
+      connections. The web application has a login page and hints at its
+      MongoDB backend.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "mongosh"
+    flag:
+      type: "stage"
+      path: "/opt/datapulse/.internal/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Scan all ports. MongoDB's default port is 27017."
+      - level: 2
+        text: "Try connecting with mongosh or mongo client to port 27017 without credentials."
+      - level: 3
+        text: "The web app on port 3000 has a /robots.txt that reveals the .internal directory path."
+
+  - name: "Database Enumeration"
+    description: >-
+      Connect to the unauthenticated MongoDB instance and enumerate all
+      databases and collections. Look for user collections, configuration
+      data, and any stored credentials. Multiple databases may exist with
+      different types of data.
+    tools_suggested:
+      - "mongosh"
+      - "mongo"
+      - "nmap"
+    flag:
+      type: "user"
+      path: "/home/appuser/user.txt"
+    points: 125
+    hints:
+      - level: 1
+        text: "Use 'show dbs' to list databases, then 'use <db>' and 'show collections' to explore."
+      - level: 2
+        text: "The 'datapulse' database contains a 'users' collection with admin credentials."
+      - level: 3
+        text: "Run: db.users.find() in the datapulse database. The admin password hash is bcrypt but there is also a plaintext_backup field."
+
+  - name: "Admin Panel Access"
+    description: >-
+      Use the admin credentials extracted from MongoDB to log into the
+      web application's admin panel. The admin panel contains sensitive
+      configuration and the final flag.
+    tools_suggested:
+      - "curl"
+      - "browser"
+      - "burpsuite"
+    flag:
+      type: "root"
+      path: "/opt/datapulse/admin_flag/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Navigate to the web app at port 3000 and log in with the admin credentials."
+      - level: 2
+        text: "Use the credentials: admin@datapulse.io / D4t4Puls3!Adm1n"
+      - level: 3
+        text: "After logging in, go to /admin/system. The root flag is displayed in the system configuration section."
+
+par_time_minutes: 35
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

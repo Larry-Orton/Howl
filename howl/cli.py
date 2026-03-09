@@ -12,7 +12,7 @@ from howl import __version__
 from howl.ui.theme import console
 from howl.ui.banner import display_banner
 from howl.ui.menu import show_main_menu
-from howl.ui.tables import render_target_table
+from howl.ui.tables import render_target_table, render_category_table
 from howl.ui.panels import (
     info_panel, success_panel, error_panel, warning_panel,
     hint_panel, flag_panel, achievement_panel, hunt_panel,
@@ -74,6 +74,38 @@ def main(ctx: typer.Context):
             raise typer.Exit()
 
 
+def _select_category(registry: TargetRegistry) -> str | None:
+    """Show category selection and return a category slug, 'all', or None."""
+    progress_map = queries.get_all_progress()
+    cat_stats = registry.get_category_stats(progress_map)
+    render_category_table(cat_stats)
+
+    console.print("  [dim]Enter a number, 'all' for all targets, or 'back' to return.[/dim]")
+    selection = Prompt.ask("  [bold]Select category[/bold]")
+
+    if not selection or selection.lower() == "back":
+        return None
+
+    if selection.lower() == "all":
+        return "all"
+
+    # Try as a number
+    try:
+        idx = int(selection) - 1
+        if 0 <= idx < len(cat_stats):
+            return cat_stats[idx]["slug"]
+    except ValueError:
+        pass
+
+    # Try as a slug
+    for cat in cat_stats:
+        if selection.lower() == cat["slug"]:
+            return cat["slug"]
+
+    error_panel("Invalid Selection", f"'{selection}' is not a valid category.")
+    return None
+
+
 def _interactive_hunt():
     """Interactive target selection and hunt launch."""
     registry = TargetRegistry()
@@ -83,7 +115,30 @@ def _interactive_hunt():
         error_panel("No Targets", "No targets found. Check your targets/ directory.")
         return
 
-    _show_targets()
+    # Step 1: Category selection
+    cat_choice = _select_category(registry)
+    if cat_choice is None:
+        return
+
+    # Step 2: Show targets in selected category
+    if cat_choice == "all":
+        filtered = target_list
+        title = "All Targets"
+    else:
+        from howl.constants import CATEGORY_DISPLAY_NAMES, Category
+        filtered = registry.get_by_category(cat_choice)
+        try:
+            display_name = CATEGORY_DISPLAY_NAMES[Category(cat_choice)]
+        except (ValueError, KeyError):
+            display_name = cat_choice.replace("-", " ").title()
+        title = display_name
+
+    if not filtered:
+        warning_panel("No Targets", f"No targets found in this category.")
+        return
+
+    progress_map = queries.get_all_progress()
+    render_target_table(filtered, progress_map, title=title)
 
     selection = Prompt.ask("\n  [bold]Enter target number or slug[/bold]")
 
@@ -91,8 +146,8 @@ def _interactive_hunt():
     target = None
     try:
         idx = int(selection) - 1
-        if 0 <= idx < len(target_list):
-            target = target_list[idx]
+        if 0 <= idx < len(filtered):
+            target = filtered[idx]
     except ValueError:
         pass
 
@@ -101,7 +156,7 @@ def _interactive_hunt():
         target = registry.get_by_slug(selection)
 
     if not target:
-        error_panel("Not Found", f"Target '{selection}' not found. Enter a number (1-{len(target_list)}) or a target slug.")
+        error_panel("Not Found", f"Target '{selection}' not found.")
         return
 
     _launch_hunt(target.slug)
@@ -188,23 +243,45 @@ def _launch_htb(ip: str, name: str | None, hostname: str | None, no_hosts: bool)
 @app.command()
 def targets(
     difficulty: str = typer.Option(None, "--difficulty", "-d", help="Filter by difficulty (easy/medium/hard/elite)"),
+    category: str = typer.Option(None, "--category", "-c", help="Filter by category slug"),
 ):
     """List all available targets with their status."""
     _ensure_db()
-    _show_targets(difficulty)
+    _show_targets(difficulty=difficulty, category=category)
 
 
-def _show_targets(difficulty: str | None = None):
-    """Internal target listing."""
+def _show_targets(difficulty: str | None = None, category: str | None = None):
+    """Internal target listing with optional category browsing."""
     registry = TargetRegistry()
-    target_list = registry.get_all(difficulty=difficulty)
+
+    # If no filter specified, show category selection
+    if not difficulty and not category:
+        cat_choice = _select_category(registry)
+        if cat_choice is None:
+            return
+        if cat_choice != "all":
+            category = cat_choice
+
+    target_list = registry.get_all(difficulty=difficulty, category=category)
 
     if not target_list:
         warning_panel("No Targets", "No targets found matching your criteria.")
         return
 
+    # Build title
+    if category:
+        from howl.constants import CATEGORY_DISPLAY_NAMES, Category
+        try:
+            title = CATEGORY_DISPLAY_NAMES[Category(category)]
+        except (ValueError, KeyError):
+            title = category.replace("-", " ").title()
+    elif difficulty:
+        title = f"{difficulty.capitalize()} Targets"
+    else:
+        title = "All Targets"
+
     progress_map = queries.get_all_progress()
-    render_target_table(target_list, progress_map)
+    render_target_table(target_list, progress_map, title=title)
 
     # Summary line
     total = len(target_list)
@@ -648,6 +725,11 @@ def _show_score(target_slug: str | None = None):
         achievements = queries.get_all_achievements()
         profile = queries.get_profile()
 
+        # Get category progress stats
+        registry = TargetRegistry()
+        progress_map = queries.get_all_progress()
+        cat_stats = registry.get_category_stats(progress_map)
+
         render_score_dashboard(
             total_score=profile["total_score"],
             easy_completed=stats["counts"].get("easy", 0),
@@ -660,6 +742,7 @@ def _show_score(target_slug: str | None = None):
             elite_score=stats["scores"].get("elite", 0),
             achievements=[dict(a) for a in achievements],
             htb_completed=stats["counts"].get("htb", 0),
+            category_stats=cat_stats,
         )
 
 

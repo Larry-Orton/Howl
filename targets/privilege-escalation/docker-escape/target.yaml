@@ -1,0 +1,139 @@
+name: "Docker Socket Escape"
+slug: "docker-escape"
+version: "1.0.0"
+difficulty: "hard"
+description: >-
+  A container has the Docker socket (/var/run/docker.sock) mounted inside,
+  allowing any user with access to the socket to interact with the Docker
+  daemon on the host. An attacker can use the Docker API to create a new
+  privileged container that mounts the host filesystem, effectively
+  escaping the container and gaining root access to the host.
+briefing: |
+  MISSION BRIEFING - OPERATION BREAKOUT
+  =======================================
+
+  Agent, we have identified a container platform run by DockYard Services,
+  a DevOps hosting company. One of their containers has the Docker daemon
+  socket mounted inside for management purposes.
+
+  The Docker socket (/var/run/docker.sock) provides unrestricted access to
+  the Docker API. If an attacker gains access to a container with the socket
+  mounted, they can create a new container with the host filesystem mounted,
+  effectively escaping the container boundary and accessing the host system.
+
+  A web application inside the container has a debug panel that exposes
+  the Docker API endpoint. The Docker API on port 2375 is also exposed
+  externally without authentication.
+
+  Your objectives:
+    1. Enumerate the web application and discover the Docker API access
+    2. Interact with the Docker socket or API to enumerate containers
+    3. Create a privileged container mounting the host filesystem
+    4. Access the host root filesystem and capture the flag
+
+  Container escapes are high-impact, agent. This is the real deal.
+
+author: "howl-team"
+cves:
+  - "CWE-269"
+tags:
+  - "docker"
+  - "container-escape"
+  - "privilege-escalation"
+  - "docker-socket"
+  - "api"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "DockYard management dashboard (Flask)"
+  - name: "docker-api"
+    port: 2375
+    protocol: "tcp"
+    description: "Docker daemon API (unauthenticated)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web application and the exposed
+      Docker API. Enumerate the dashboard for information about the
+      Docker environment.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "browser"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan for open ports. There is a web app and a Docker API endpoint."
+      - level: 2
+        text: "The web app on port 8080 has a /containers page showing Docker environment details."
+      - level: 3
+        text: "Visit the /containers page to see mounted volumes. The recon flag path is in an HTML comment."
+
+  - name: "Docker API Discovery"
+    description: >-
+      Interact with the Docker API on port 2375 to enumerate running
+      containers, images, and volumes. Confirm unauthenticated access.
+    tools_suggested:
+      - "curl"
+      - "docker"
+    flag:
+      type: "stage"
+      path: "/opt/.docker_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Try connecting to the Docker API: curl http://<target>:2375/version"
+      - level: 2
+        text: "List containers: curl http://<target>:2375/containers/json"
+      - level: 3
+        text: "The API is unauthenticated. The docker discovery flag is at /opt/.docker_flag.txt inside the current container."
+
+  - name: "Container Escape"
+    description: >-
+      Use the Docker API to create a new privileged container that mounts
+      the host root filesystem. Access the mounted filesystem.
+    tools_suggested:
+      - "curl"
+      - "docker"
+    flag:
+      type: "stage"
+      path: "/opt/.escape_flag.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Use the Docker API to create a container with the host filesystem mounted."
+      - level: 2
+        text: "Create a container mounting /:/hostfs using the Docker API or docker client."
+      - level: 3
+        text: "curl -X POST -H 'Content-Type: application/json' -d '{\"Image\":\"alpine\",\"Cmd\":[\"cat\",\"/hostfs/root/root.txt\"],\"Binds\":[\"/:/hostfs\"]}' http://<target>:2375/containers/create"
+
+  - name: "Root Flag Capture"
+    description: >-
+      Start the privileged container and read the root flag from the
+      mounted host filesystem.
+    tools_suggested:
+      - "curl"
+      - "docker"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Start the container you created and read its output logs."
+      - level: 2
+        text: "Start: curl -X POST http://<target>:2375/containers/<id>/start then read logs."
+      - level: 3
+        text: "The root flag is on the host at /root/root.txt. Mount / and cat the file from the new container."
+
+par_time_minutes: 45
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

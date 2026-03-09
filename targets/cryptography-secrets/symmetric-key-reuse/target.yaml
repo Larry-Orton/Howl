@@ -1,0 +1,137 @@
+name: "Symmetric Key Reuse"
+slug: "symmetric-key-reuse"
+version: "1.0.0"
+difficulty: "hard"
+description: >-
+  Two microservices sharing the same AES encryption key. Service A
+  stores encrypted credentials while Service B exposes its encryption
+  key through a debug endpoint. Extract the key from one service to
+  decrypt secrets from the other.
+briefing: |
+  MISSION BRIEFING - OPERATION SHARED SECRET
+  =============================================
+
+  Agent, NovaBridge Systems operates two microservices as part of
+  their internal platform:
+
+    - Service A (port 8080): Credentials vault that stores encrypted data
+    - Service B (port 3000): Configuration service with debug features
+
+  Our intelligence suggests both services use the same AES encryption
+  key -- a classic key reuse vulnerability. If you can extract the key
+  from the less-secure service, you can decrypt the secrets stored in
+  the other.
+
+  Your objectives:
+    1. Discover both services and their endpoints
+    2. Obtain encrypted data from the Credentials Vault (Service A)
+    3. Extract the shared encryption key from Service B
+    4. Decrypt the credentials and gain root access
+
+  Good luck, agent. Key reuse is a fundamental crypto mistake.
+
+author: "howl-team"
+cves:
+  - "CWE-327"
+tags:
+  - "symmetric-encryption"
+  - "key-reuse"
+  - "aes"
+  - "microservices"
+  - "cryptography"
+  - "decryption"
+
+services:
+  - name: "vault"
+    port: 8080
+    protocol: "tcp"
+    description: "NovaBridge Credentials Vault (Flask)"
+  - name: "config-service"
+    port: 3000
+    protocol: "tcp"
+    description: "NovaBridge Configuration Service (Flask)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover both services and enumerate their
+      available endpoints and functionality.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "curl"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.ops/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan both port 8080 and port 3000 for web services."
+      - level: 2
+        text: "Enumerate endpoints on both services for API and debug paths."
+      - level: 3
+        text: "Service A has /api/vault endpoints. Service B has /debug and /api/config endpoints."
+
+  - name: "Encrypted Data Retrieval"
+    description: >-
+      Access the Credentials Vault API on Service A to obtain the
+      encrypted credentials stored in the vault.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/opt/novabridge/vault_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Access the vault API to list stored encrypted secrets."
+      - level: 2
+        text: "GET /api/vault/secrets returns encrypted credential entries."
+      - level: 3
+        text: "The vault stores AES-CBC encrypted data as hex strings with IV prepended."
+
+  - name: "Key Extraction"
+    description: >-
+      Find and extract the shared AES encryption key from Service B's
+      debug or configuration endpoints.
+    tools_suggested:
+      - "curl"
+      - "python"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Service B has debug endpoints that may expose sensitive configuration."
+      - level: 2
+        text: "Access /debug/config on port 3000 to see the service configuration."
+      - level: 3
+        text: "The AES key is exposed at http://<target>:3000/debug/config as ENCRYPTION_KEY."
+
+  - name: "Decryption and Access"
+    description: >-
+      Use the extracted AES key to decrypt the credentials from the
+      vault and use them to gain root access.
+    tools_suggested:
+      - "python"
+      - "cyberchef"
+      - "openssl"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 250
+    hints:
+      - level: 1
+        text: "Write a Python script to decrypt AES-CBC data using the extracted key."
+      - level: 2
+        text: "The IV is the first 16 bytes (32 hex chars) of each encrypted value."
+      - level: 3
+        text: "Use: AES.new(key, AES.MODE_CBC, iv).decrypt(ciphertext) and unpad the result."
+
+par_time_minutes: 50
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

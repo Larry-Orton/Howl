@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  ld-preload-hijack:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: howl-ld-preload-hijack
+    ports:
+      - "22:22"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=ld-preload-hijack"
+      - "howl.difficulty=hard"

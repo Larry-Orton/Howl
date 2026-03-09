@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  securevault:
+    build: .
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    labels:
+      - "howl.target=rate-limit-bypass"
+      - "howl.difficulty=medium"
+    environment:
+      - FLASK_ENV=production

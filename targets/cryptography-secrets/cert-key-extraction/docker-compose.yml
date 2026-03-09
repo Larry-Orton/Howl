@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webapp
+    ports:
+      - "443:443"
+      - "8443:8443"
+    restart: unless-stopped
+    labels:
+      - "howl.target=cert-key-extraction"
+      - "howl.difficulty=elite"

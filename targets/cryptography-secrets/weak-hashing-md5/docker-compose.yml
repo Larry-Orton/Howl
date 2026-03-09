@@ -1,0 +1,33 @@
+version: "3.8"
+
+services:
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webapp
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+    restart: unless-stopped
+    labels:
+      - "howl.target=weak-hashing-md5"
+      - "howl.difficulty=medium"
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: r00tpass_cs!
+      MYSQL_DATABASE: cipherstack
+      MYSQL_USER: cs_app
+      MYSQL_PASSWORD: "cs_db_p@ss2024"
+    volumes:
+      - ./app/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    labels:
+      - "howl.target=weak-hashing-md5"
+      - "howl.difficulty=medium"

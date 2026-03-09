@@ -10,14 +10,28 @@ from howl.config import DB_FILE, ensure_howl_home
 SCHEMA_FILE = Path(__file__).parent / "schema.sql"
 
 # Current schema version — bump this when adding migrations.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+# ---------------------------------------------------------------------------
+# Migration functions
+# ---------------------------------------------------------------------------
+
+def _migrate_v2(conn: sqlite3.Connection):
+    """Add category column to target_progress table."""
+    # Check if column already exists (safe for re-runs)
+    cursor = conn.execute("PRAGMA table_info(target_progress)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if "category" not in columns:
+        conn.execute(
+            "ALTER TABLE target_progress ADD COLUMN category TEXT NOT NULL DEFAULT ''"
+        )
+
 
 # Ordered list of migration functions.  Each entry is (version, callable).
 # A migration runs when the DB is at a version lower than the entry's version.
 # Migrations receive a sqlite3.Connection and must NOT commit (caller does).
 _MIGRATIONS: list[tuple[int, callable]] = [
-    # Example for future use:
-    # (2, _migrate_v2),
+    (2, _migrate_v2),
 ]
 
 

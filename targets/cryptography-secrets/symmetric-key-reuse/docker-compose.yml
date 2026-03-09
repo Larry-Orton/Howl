@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webapp
+    ports:
+      - "8080:8080"
+      - "3000:3000"
+    restart: unless-stopped
+    labels:
+      - "howl.target=symmetric-key-reuse"
+      - "howl.difficulty=hard"

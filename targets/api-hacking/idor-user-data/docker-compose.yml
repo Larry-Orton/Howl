@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  peopleapi:
+    build: .
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    labels:
+      - "howl.target=idor-user-data"
+      - "howl.difficulty=easy"
+    environment:
+      - FLASK_ENV=production

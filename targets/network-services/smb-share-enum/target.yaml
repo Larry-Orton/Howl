@@ -1,0 +1,117 @@
+name: "SMB Share Enumeration"
+slug: "smb-share-enum"
+version: "1.0.0"
+difficulty: "easy"
+description: >-
+  A Samba file server with multiple shares, one of which allows guest access
+  and contains credentials for an authenticated share holding the final flag.
+  Enumerate, access, and escalate through the SMB shares.
+briefing: |
+  MISSION BRIEFING - OPERATION SHARED SECRETS
+  =============================================
+
+  Agent, we have intercepted network traffic from Meridian Financial, a
+  mid-size accounting firm. Their internal file server exposes SMB shares
+  to the network, and our initial assessment suggests poor access controls.
+
+  The IT department has configured multiple shares, some with guest access
+  for convenience. This is a common but dangerous practice, as even a
+  single readable share could expose credentials for more sensitive areas.
+
+  Your objectives:
+    1. Discover the SMB service and enumerate all available shares
+    2. Access the guest-readable share and extract credentials
+    3. Use the credentials to access the restricted share and retrieve the flag
+
+  This is a textbook share enumeration exercise. Quick and clean, agent.
+
+author: "howl-team"
+cves:
+  - "CWE-732"
+  - "CWE-522"
+tags:
+  - "smb"
+  - "samba"
+  - "share-enumeration"
+  - "credential-leak"
+  - "network-services"
+
+services:
+  - name: "smb"
+    port: 445
+    protocol: "tcp"
+    description: "Samba file sharing service"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover the SMB service on port 445. Use SMB
+      enumeration tools to list all available shares and identify which
+      ones allow guest or null-session access.
+    tools_suggested:
+      - "nmap"
+      - "smbclient"
+      - "enum4linux"
+      - "crackmapexec"
+    flag:
+      type: "stage"
+      path: "/opt/howl/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Run nmap with the --script smb-enum-shares option to list shares."
+      - level: 2
+        text: "Use smbclient -L //target -N to list shares with a null session."
+      - level: 3
+        text: "You should find three shares: public, finance, and admin. The 'public' share allows guest access."
+
+  - name: "Guest Share Access"
+    description: >-
+      Connect to the guest-accessible share and browse its contents. Look
+      for documents, notes, or configuration files that may contain
+      credentials for other shares or services.
+    tools_suggested:
+      - "smbclient"
+      - "smbmap"
+      - "mount"
+    flag:
+      type: "user"
+      path: "/home/smbuser/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Connect to the 'public' share: smbclient //target/public -N"
+      - level: 2
+        text: "Look in the IT directory within the public share for configuration notes."
+      - level: 3
+        text: "Download it_migration_notes.txt. It contains the password for the 'finance' share: M3r1d1an$hare!"
+
+  - name: "Authenticated Share Flag"
+    description: >-
+      Use the discovered credentials to access the restricted 'finance'
+      share. Browse for sensitive files and retrieve the final flag.
+    tools_suggested:
+      - "smbclient"
+      - "mount"
+      - "cat"
+    flag:
+      type: "root"
+      path: "/srv/samba/finance/confidential/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Connect to the finance share with the discovered credentials."
+      - level: 2
+        text: "Use: smbclient //target/finance -U finance_user%M3r1d1an$hare!"
+      - level: 3
+        text: "Browse to the 'confidential' directory in the finance share. The flag is in root.txt."
+
+par_time_minutes: 20
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

@@ -1,0 +1,143 @@
+name: "LD_PRELOAD Hijack"
+slug: "ld-preload-hijack"
+version: "1.0.0"
+difficulty: "hard"
+description: >-
+  A Linux system has a sudo configuration that preserves the LD_PRELOAD
+  environment variable via env_keep. A low-privileged user can compile a
+  malicious shared library and inject it via LD_PRELOAD when running a
+  sudo-allowed command, gaining code execution as root.
+briefing: |
+  MISSION BRIEFING - OPERATION PRELOADER
+  ========================================
+
+  Agent, we have identified a development server belonging to PreLoad
+  Dynamics, a systems programming consultancy. The server has a sudo
+  configuration that was intended to allow a developer to run a specific
+  monitoring tool as root.
+
+  However, the sudoers entry includes an env_keep directive that preserves
+  LD_PRELOAD. This environment variable tells the dynamic linker to load
+  a specified shared library before any other. If an attacker can create
+  a malicious shared library with an init constructor, it will execute
+  with the privileges of the sudo target user (root).
+
+  This is an advanced attack that requires compiling C code on the target.
+  A web application on the server exposes credentials through a vulnerable
+  command injection in a diagnostic tool.
+
+  Your objectives:
+    1. Discover the web application and exploit command injection for recon
+    2. Find SSH credentials and gain shell access
+    3. Discover the sudo env_keep misconfiguration for LD_PRELOAD
+    4. Compile a malicious shared library and inject it to become root
+
+  This one requires some C knowledge, agent. Good hunting.
+
+author: "howl-team"
+cves:
+  - "CWE-426"
+tags:
+  - "ld-preload"
+  - "privilege-escalation"
+  - "linux"
+  - "shared-library"
+  - "sudo"
+  - "env-keep"
+  - "ssh"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "PreLoad Dynamics diagnostic tool (Flask)"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web application. The diagnostic tool
+      has a command injection vulnerability that can be used for initial
+      enumeration.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "browser"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan for open ports and explore the web application on port 8080."
+      - level: 2
+        text: "The web application has a diagnostic endpoint that accepts user input for a network check."
+      - level: 3
+        text: "Inject a command in the diagnostic form: 127.0.0.1; cat /var/www/.config/recon_flag.txt"
+
+  - name: "Initial Access"
+    description: >-
+      Use the command injection to read credential files or explore the
+      filesystem. Locate SSH credentials and gain a proper shell.
+    tools_suggested:
+      - "curl"
+      - "ssh"
+    flag:
+      type: "user"
+      path: "/home/preload/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Use the command injection to enumerate the filesystem and find credentials."
+      - level: 2
+        text: "Inject: 127.0.0.1; cat /opt/.credentials to find SSH login details."
+      - level: 3
+        text: "SSH as preload:Pr3L0ad_Dyn#2024 and read ~/user.txt for the user flag."
+
+  - name: "Sudo Enumeration"
+    description: >-
+      Enumerate sudo privileges and discover that the env_keep directive
+      preserves LD_PRELOAD when running the allowed command.
+    tools_suggested:
+      - "sudo"
+      - "cat"
+    flag:
+      type: "stage"
+      path: "/opt/.privesc_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Run 'sudo -l' to see your sudo privileges and environment settings."
+      - level: 2
+        text: "Notice that env_keep includes LD_PRELOAD. This means LD_PRELOAD is preserved when running sudo commands."
+      - level: 3
+        text: "The privesc flag is at /opt/.privesc_flag.txt. Focus on exploiting the LD_PRELOAD env_keep to become root."
+
+  - name: "Privilege Escalation"
+    description: >-
+      Compile a malicious shared library with an __attribute__((constructor))
+      function that spawns a root shell. Load it via LD_PRELOAD when
+      executing the sudo-allowed command.
+    tools_suggested:
+      - "gcc"
+      - "sudo"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Create a C file with a constructor function that calls setuid(0) and system('/bin/bash')."
+      - level: 2
+        text: "Compile it as a shared library: gcc -fPIC -shared -o /tmp/evil.so /tmp/evil.c -nostartfiles"
+      - level: 3
+        text: "Run: sudo LD_PRELOAD=/tmp/evil.so /usr/bin/apache2 to get a root shell. Then cat /root/root.txt."
+
+par_time_minutes: 45
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

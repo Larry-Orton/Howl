@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  mongodb-noauth:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mongodb-noauth
+    ports:
+      - "27017:27017"
+      - "3000:3000"
+    restart: unless-stopped
+    labels:
+      - "howl.target=mongodb-noauth"
+      - "howl.difficulty=hard"

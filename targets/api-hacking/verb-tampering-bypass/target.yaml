@@ -1,0 +1,122 @@
+name: "REST API Verb Tampering"
+slug: "verb-tampering-bypass"
+difficulty: "medium"
+description: >
+  A REST API with an incomplete security filter that only blocks specific HTTP
+  methods (DELETE, POST) on admin routes but allows other methods like PATCH
+  and PUT to pass through unfiltered. An attacker can bypass access controls
+  by using alternative HTTP verbs to perform restricted operations.
+briefing: |
+  MISSION BRIEFING - OPERATION WRONG TURN
+  =========================================
+
+  Intelligence has identified "ConfigAPI" - a configuration management API
+  deployed by the target organization. The security team implemented method-
+  based access controls to protect administrative endpoints, but their filter
+  only blocks DELETE and POST requests.
+
+  The filter fails to account for other HTTP methods like PATCH, PUT, and even
+  custom methods. Since the underlying application logic processes these
+  alternative verbs, an attacker can bypass the security filter entirely.
+
+  PHASE 1 - RECONNAISSANCE
+    Map the API endpoints and discover the available HTTP methods on each
+    route. Identify which methods are blocked and which are allowed. Use
+    OPTIONS requests and method probing to build a complete picture.
+
+  PHASE 2 - VERB TAMPERING
+    Bypass the method-based access control by using alternative HTTP verbs.
+    Where DELETE is blocked, try PATCH or PUT. The security filter only
+    checks for a specific deny-list of methods.
+
+  PHASE 3 - ADMIN DATA ACCESS
+    Use verb tampering to access restricted admin endpoints and extract
+    sensitive configuration data including the final flag.
+
+  Good luck, operator.
+author: "howl-team"
+cves:
+  - "CWE-285"
+tags:
+  - "verb-tampering"
+  - "http-methods"
+  - "access-control"
+  - "bypass"
+  - "rest-api"
+services:
+  - name: "api"
+    port: 3000
+    protocol: "http"
+    description: "ConfigAPI - Configuration management REST API"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >
+      Discover the API endpoints and probe for available HTTP methods. Use
+      OPTIONS requests and trial-and-error to identify which methods are
+      allowed and which are blocked on each endpoint. Study the error
+      messages to understand the security filter logic.
+    tools_suggested:
+      - "curl"
+      - "nmap"
+      - "nikto"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Send an OPTIONS request to /api/admin/config to see allowed methods. Also try GET, POST, DELETE, PUT, PATCH."
+      - level: 2
+        text: "DELETE and POST to /api/admin/ routes return 403 with a 'Method not allowed by security policy' message. GET and other methods behave differently."
+      - level: 3
+        text: "The security filter deny-list only includes DELETE and POST. The error message reveals this: 'Security filter blocked method: DELETE'. Methods like PATCH and PUT are not filtered."
+
+  - name: "Verb Tampering"
+    description: >
+      Bypass the security filter by using HTTP methods that are not in the
+      deny-list. The application processes PATCH, PUT, and custom methods
+      identically to the blocked methods, but the security filter does not
+      check for them.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+      - "python3"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Try PATCH or PUT instead of the blocked DELETE method on admin endpoints."
+      - level: 2
+        text: "curl -X PATCH http://target:3000/api/admin/config -H 'Authorization: Bearer <token>' bypasses the security filter."
+      - level: 3
+        text: "Both PATCH and PUT bypass the filter. The application processes them the same as POST/DELETE. Access /api/admin/users with PATCH to see user data."
+
+  - name: "Admin Data Extraction"
+    description: >
+      Use verb tampering to access the restricted admin configuration
+      endpoint. Extract system secrets, database credentials, and the
+      root flag by sending PATCH or PUT requests to admin routes.
+    tools_suggested:
+      - "curl"
+      - "python3"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 125
+    hints:
+      - level: 1
+        text: "Use PATCH to access /api/admin/secrets which contains the most sensitive data."
+      - level: 2
+        text: "curl -X PATCH http://target:3000/api/admin/secrets -H 'Authorization: Bearer <token>' returns system secrets including the root flag."
+      - level: 3
+        text: "The /api/admin/secrets endpoint returns a JSON object with a 'master_secret' field containing the root flag when accessed via PATCH."
+
+par_time_minutes: 30
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

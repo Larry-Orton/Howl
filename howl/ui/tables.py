@@ -1,4 +1,4 @@
-"""Target list tables and score tables for Howl."""
+"""Target list tables, category tables, and score tables for Howl."""
 
 from rich.table import Table
 
@@ -9,18 +9,82 @@ from howl.constants import (
 )
 
 
-def render_target_table(targets: list, progress_map: dict | None = None):
+def render_category_table(category_stats: list):
+    """Render the category selection table.
+
+    Args:
+        category_stats: List of dicts from TargetRegistry.get_category_stats().
+            Keys: slug, name, icon, color, description, total, completed,
+                  total_score, difficulty_mix.
+    """
+    table = Table(
+        title="[bold]Target Categories[/bold]",
+        border_style="bright_red",
+        header_style="bold bright_red",
+        show_lines=False,
+        padding=(0, 1),
+    )
+
+    table.add_column("#", style="dim", width=4, justify="right")
+    table.add_column("Category", min_width=28)
+    table.add_column("Targets", width=10, justify="center")
+    table.add_column("Progress", width=14, justify="left")
+    table.add_column("Difficulty", width=16, justify="center")
+    table.add_column("Score", width=10, justify="right")
+
+    for i, cat in enumerate(category_stats, 1):
+        color = cat["color"]
+        icon = cat["icon"]
+        name = cat["name"]
+        total = cat["total"]
+        completed = cat["completed"]
+        total_score = cat["total_score"]
+        diff_mix = cat["difficulty_mix"]
+
+        # Progress bar: 10-character bar
+        if total > 0:
+            filled = int((completed / total) * 10)
+        else:
+            filled = 0
+        bar = f"[{color}]#[/{color}]" * filled + "[dim]-[/dim]" * (10 - filled)
+
+        score_display = (
+            f"[bright_yellow]{total_score:,}[/bright_yellow]"
+            if total_score > 0
+            else "[dim]--[/dim]"
+        )
+
+        table.add_row(
+            str(i),
+            f"[{color}]{icon}[/{color}] [{color}]{name}[/{color}]",
+            f"{completed}/{total}",
+            bar,
+            f"[dim]{diff_mix}[/dim]",
+            score_display,
+        )
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
+def render_target_table(
+    targets: list,
+    progress_map: dict | None = None,
+    title: str = "Howl Targets",
+):
     """Render a table of all targets with their status.
 
     Args:
         targets: List of Target model objects.
         progress_map: Dict mapping target_slug -> {status, best_score, best_time}.
+        title: Table title text.
     """
     if progress_map is None:
         progress_map = {}
 
     table = Table(
-        title="[bold]Howl Targets[/bold]",
+        title=f"[bold]{title}[/bold]",
         border_style="bright_red",
         header_style="bold bright_red",
         show_lines=False,

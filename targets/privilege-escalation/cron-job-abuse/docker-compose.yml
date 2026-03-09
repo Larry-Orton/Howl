@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  cron-job-abuse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: howl-cron-job-abuse
+    ports:
+      - "22:22"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=cron-job-abuse"
+      - "howl.difficulty=medium"

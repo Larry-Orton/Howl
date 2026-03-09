@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  snmp-community-leak:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: snmp-community-leak
+    ports:
+      - "161:161/udp"
+      - "22:22"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=snmp-community-leak"
+      - "howl.difficulty=medium"

@@ -1,0 +1,136 @@
+name: "Git Repository Leak"
+slug: "git-leak-secrets"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A web application with an exposed .git directory that allows
+  downloading git objects, reconstructing commit history, and
+  finding credentials that were removed in a later commit.
+briefing: |
+  MISSION BRIEFING - OPERATION REPO GHOST
+  ==========================================
+
+  Agent, DevForge Solutions is hosting a project management tool on
+  port 8080. Our intelligence indicates the developer deployed the
+  application directly from a git repository and forgot to restrict
+  access to the .git directory.
+
+  With access to the git objects, you can reconstruct the repository
+  history and find secrets that were committed and later "removed" --
+  but git never truly forgets.
+
+  Your objectives:
+    1. Discover the accessible .git directory
+    2. Download and reconstruct git objects
+    3. Find credentials in old commits that were removed
+    4. Use the leaked credentials to access the system
+
+  Good luck, agent. Git history is forever.
+
+author: "howl-team"
+cves:
+  - "CWE-538"
+tags:
+  - "git-exposure"
+  - "information-disclosure"
+  - "version-control"
+  - "secrets-in-history"
+  - "cryptography"
+  - "secrets-management"
+
+services:
+  - name: "webapp"
+    port: 8080
+    protocol: "tcp"
+    description: "DevForge Project Manager (Flask)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover the exposed .git directory and
+      confirm that git objects are accessible via the web server.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "dirb"
+      - "curl"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.devops/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan for common version control directories like .git, .svn, .hg."
+      - level: 2
+        text: "Try accessing /.git/HEAD to confirm a git repository is exposed."
+      - level: 3
+        text: "curl http://<target>:8080/.git/HEAD will show 'ref: refs/heads/main'."
+
+  - name: "Git Object Extraction"
+    description: >-
+      Download the git objects from the exposed .git directory to
+      reconstruct the repository locally.
+    tools_suggested:
+      - "git-dumper"
+      - "wget"
+      - "curl"
+      - "GitTools"
+    flag:
+      type: "stage"
+      path: "/opt/devforge/git_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Use git-dumper or manually download .git/objects to reconstruct the repo."
+      - level: 2
+        text: "Download .git/HEAD, .git/refs/heads/main, then follow the object chain."
+      - level: 3
+        text: "Use: git-dumper http://<target>:8080/.git/ ./dumped-repo"
+
+  - name: "History Analysis"
+    description: >-
+      Examine the git commit history to find credentials that were
+      committed and later removed in a subsequent commit.
+    tools_suggested:
+      - "git"
+      - "trufflehog"
+      - "git-secrets"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Run git log and examine diffs between commits for removed secrets."
+      - level: 2
+        text: "Look at git diff between the first and second commits for removed credentials."
+      - level: 3
+        text: "git log --all -p will show that config.py once contained DB_PASSWORD='D3vF0rge_Adm!n2024'."
+
+  - name: "System Access"
+    description: >-
+      Use the credentials found in the git history to log in and
+      access the admin panel containing the root flag.
+    tools_suggested:
+      - "curl"
+      - "browser"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "The git history contains admin credentials for the web application."
+      - level: 2
+        text: "Navigate to /admin and use the leaked credentials."
+      - level: 3
+        text: "Log in at /admin with devadmin:D3vF0rge_Adm!n2024 to find the root flag."
+
+par_time_minutes: 40
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true
+  post_start:
+    - container: "webapp"
+      command: "bash /app/init_git.sh"

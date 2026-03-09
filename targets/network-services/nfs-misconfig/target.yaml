@@ -1,0 +1,148 @@
+name: "NFS Misconfigured Exports"
+slug: "nfs-misconfig"
+version: "1.0.0"
+difficulty: "hard"
+description: >-
+  A server with misconfigured NFS exports that expose sensitive directories
+  to any client. Mount the exports, discover SSH keys, and use them to
+  gain shell access and escalate to root.
+briefing: |
+  MISSION BRIEFING - OPERATION MOUNT POINT
+  ==========================================
+
+  Agent, Ironclad Storage Solutions manages a centralized file server that
+  uses NFS (Network File System) to share directories across their internal
+  network. However, our analysis indicates the NFS exports are configured
+  with wildcard access, allowing any machine to mount them.
+
+  NFS misconfigurations are particularly dangerous because they can expose
+  home directories, configuration files, and even SSH keys. When combined
+  with the no_root_squash option, attackers can create files with arbitrary
+  ownership on the server.
+
+  Your objectives:
+    1. Discover the NFS service and enumerate available exports
+    2. Mount the NFS shares and explore the exposed file systems
+    3. Find SSH private keys in the exported home directories
+    4. Use the SSH keys to log in and escalate to root
+
+  NFS attacks are a staple of internal network penetration testing. The
+  no_root_squash misconfiguration is your ticket to root. Execute.
+
+author: "howl-team"
+cves:
+  - "CWE-732"
+  - "CWE-276"
+tags:
+  - "nfs"
+  - "misconfiguration"
+  - "ssh-key-theft"
+  - "privilege-escalation"
+  - "network-services"
+  - "file-sharing"
+
+services:
+  - name: "nfs"
+    port: 2049
+    protocol: "tcp"
+    description: "NFS server with misconfigured exports"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover the NFS service on port 2049 and SSH
+      on port 22. Use showmount to enumerate the available NFS exports
+      and identify which directories are shared.
+    tools_suggested:
+      - "nmap"
+      - "showmount"
+      - "rpcinfo"
+    flag:
+      type: "stage"
+      path: "/opt/ironclad/.nfs_config/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Scan for NFS-related ports: 111 (rpcbind) and 2049 (NFS)."
+      - level: 2
+        text: "Use showmount -e target to list all NFS exports."
+      - level: 3
+        text: "Two exports are available: /home/devops and /opt/shared, both accessible by any host (*)."
+
+  - name: "NFS Share Mounting"
+    description: >-
+      Mount the NFS exports on your attacking machine and browse the
+      contents. Look for sensitive files, configuration data, and
+      authentication material in the shared directories.
+    tools_suggested:
+      - "mount"
+      - "ls"
+      - "find"
+      - "cat"
+    flag:
+      type: "user"
+      path: "/home/devops/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Mount the export: mkdir /mnt/nfs && mount -t nfs target:/home/devops /mnt/nfs"
+      - level: 2
+        text: "Browse the devops user's home directory. Check for hidden files and directories."
+      - level: 3
+        text: "The .ssh directory in the devops home contains an SSH private key (id_rsa)."
+
+  - name: "SSH Key Authentication"
+    description: >-
+      Extract the SSH private key from the NFS export and use it to
+      authenticate to the SSH service as the devops user. This bypasses
+      password authentication entirely.
+    tools_suggested:
+      - "ssh"
+      - "chmod"
+      - "cat"
+    flag:
+      type: "stage"
+      path: "/opt/ironclad/internal/ssh_flag.txt"
+    points: 125
+    hints:
+      - level: 1
+        text: "Copy the private key and set proper permissions: chmod 600 id_rsa"
+      - level: 2
+        text: "Use the key to SSH in: ssh -i id_rsa devops@target"
+      - level: 3
+        text: "If the key has a passphrase, try common ones or crack it with ssh2john and john."
+
+  - name: "Privilege Escalation to Root"
+    description: >-
+      As the devops user, exploit the no_root_squash NFS misconfiguration
+      or other privilege escalation vectors to gain root access and
+      retrieve the final flag.
+    tools_suggested:
+      - "find"
+      - "sudo"
+      - "bash"
+      - "cp"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Check sudo permissions and look for SUID binaries. Also consider the NFS no_root_squash option."
+      - level: 2
+        text: "The /opt/shared export uses no_root_squash. You can create SUID binaries via NFS."
+      - level: 3
+        text: >-
+          On your attacker machine (as root): mount target:/opt/shared /mnt/shared,
+          then cp /bin/bash /mnt/shared/bash && chmod +s /mnt/shared/bash.
+          On the target: /opt/shared/bash -p to get root shell.
+
+par_time_minutes: 40
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

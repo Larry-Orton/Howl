@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  docker-escape:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: howl-docker-escape
+    ports:
+      - "2375:2375"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    labels:
+      - "howl.target=docker-escape"
+      - "howl.difficulty=hard"

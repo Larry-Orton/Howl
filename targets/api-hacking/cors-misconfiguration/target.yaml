@@ -1,0 +1,130 @@
+name: "Broken CORS Policy"
+slug: "cors-misconfiguration"
+difficulty: "medium"
+description: >
+  A REST API with an overly permissive CORS policy that reflects the Origin
+  header in Access-Control-Allow-Origin without validation. This allows any
+  malicious website to make authenticated cross-origin requests and steal
+  sensitive data including admin tokens.
+briefing: |
+  MISSION BRIEFING - OPERATION OPEN BORDER
+  ==========================================
+
+  Intelligence has identified "FinanceAPI" - a financial data API deployed by
+  the target organization. The API implements CORS (Cross-Origin Resource
+  Sharing) to allow its frontend to make cross-domain requests. However, the
+  CORS implementation simply reflects any Origin header back as the
+  Access-Control-Allow-Origin value, effectively allowing any website to
+  make authenticated requests to the API.
+
+  Combined with Access-Control-Allow-Credentials: true, this means an
+  attacker-controlled website can silently make requests to the API using the
+  victim's session cookies and read the responses.
+
+  PHASE 1 - RECONNAISSANCE
+    Discover the API endpoints and analyze the CORS headers in responses.
+    Send requests with different Origin headers to confirm the reflection
+    behavior.
+
+  PHASE 2 - CORS EXPLOITATION
+    Craft cross-origin requests from an arbitrary origin that demonstrate
+    the API will respond with matching CORS headers, proving the
+    misconfiguration.
+
+  PHASE 3 - TOKEN THEFT
+    Exploit the CORS misconfiguration to access the admin's profile endpoint
+    which exposes an admin API token. The attacker-hosted page on port 8080
+    simulates a phishing site that steals the token.
+
+  Good luck, operator.
+author: "howl-team"
+cves:
+  - "CWE-942"
+tags:
+  - "cors"
+  - "misconfiguration"
+  - "cross-origin"
+  - "token-theft"
+  - "web"
+services:
+  - name: "api"
+    port: 3000
+    protocol: "http"
+    description: "FinanceAPI - Financial data REST API"
+  - name: "attacker-site"
+    port: 8080
+    protocol: "http"
+    description: "Attacker simulation site for CORS exploitation"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >
+      Discover the API endpoints and analyze the CORS response headers.
+      Send requests with various Origin headers to confirm the API reflects
+      any origin without validation. Identify that Access-Control-Allow-Credentials
+      is set to true.
+    tools_suggested:
+      - "curl"
+      - "nmap"
+      - "burpsuite"
+      - "browser-devtools"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Send a request with an Origin header and check the response: curl -v -H 'Origin: http://evil.com' http://target:3000/api/docs"
+      - level: 2
+        text: "The response includes 'Access-Control-Allow-Origin: http://evil.com' - the API reflects whatever Origin you send."
+      - level: 3
+        text: "Note the 'Access-Control-Allow-Credentials: true' header. Combined with Origin reflection, this means any site can make authenticated requests."
+
+  - name: "CORS Exploitation"
+    description: >
+      Demonstrate the CORS misconfiguration by crafting requests from an
+      arbitrary origin. Confirm that the API sends back proper CORS headers
+      allowing cross-origin reads, even for authenticated endpoints.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+      - "python3"
+      - "browser-devtools"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Register a user and then send an authenticated request with a spoofed Origin header. The API still reflects the origin."
+      - level: 2
+        text: "The attacker site on port 8080 contains a JavaScript-based CORS exploit. Visit it to see the attack in action."
+      - level: 3
+        text: "curl -H 'Origin: http://evil.com' -H 'Authorization: Bearer <token>' http://target:3000/api/profile shows credentials with reflected CORS headers."
+
+  - name: "Admin Token Theft"
+    description: >
+      Exploit the CORS misconfiguration to access the admin token endpoint.
+      The admin's session contains a high-privilege API token in their profile.
+      Use the CORS flaw to exfiltrate this token and access admin resources.
+    tools_suggested:
+      - "curl"
+      - "python3"
+      - "burpsuite"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 125
+    hints:
+      - level: 1
+        text: "The /api/admin/token endpoint exposes the admin's API token. It requires admin authentication but CORS allows cross-origin access."
+      - level: 2
+        text: "Login as admin (admin:admin123) or use the attacker site to demonstrate token theft. The admin token is exposed in the profile."
+      - level: 3
+        text: "Access /api/admin/secrets with the admin token to retrieve the root flag. The CORS flaw makes this possible from any origin."
+
+par_time_minutes: 35
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

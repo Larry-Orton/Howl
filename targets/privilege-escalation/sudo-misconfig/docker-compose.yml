@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  sudo-misconfig:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: howl-sudo-misconfig
+    ports:
+      - "22:22"
+      - "8080:8080"
+    restart: unless-stopped
+    labels:
+      - "howl.target=sudo-misconfig"
+      - "howl.difficulty=easy"

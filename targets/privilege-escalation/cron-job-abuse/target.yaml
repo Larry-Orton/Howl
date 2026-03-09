@@ -1,0 +1,124 @@
+name: "Writable Cron Job"
+slug: "cron-job-abuse"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A Linux server runs a cron job as root that executes a world-writable
+  script every minute. A low-privileged user can modify the script to
+  execute arbitrary commands with root privileges, enabling full system
+  compromise.
+briefing: |
+  MISSION BRIEFING - OPERATION TICK TOCK
+  ========================================
+
+  Agent, we have identified an internal monitoring server belonging to
+  ClockWork Systems, a network monitoring company. The server runs
+  automated health-check scripts via cron to monitor system resources.
+
+  Our intelligence suggests the system administrator created a cleanup
+  script that runs as root every minute via cron. However, the script
+  file permissions were set incorrectly, making it world-writable. Any
+  user on the system can modify the script, and it will be executed with
+  root privileges on the next cron cycle.
+
+  A web-based monitoring dashboard on the target leaks SSH credentials
+  through a debug endpoint.
+
+  Your objectives:
+    1. Enumerate the web application and discover credentials
+    2. Gain SSH access and identify the writable cron job
+    3. Modify the cron script to escalate privileges and capture the root flag
+
+  Time is on your side for this one, agent. The cron runs every minute.
+
+author: "howl-team"
+cves:
+  - "CWE-732"
+tags:
+  - "cron"
+  - "privilege-escalation"
+  - "linux"
+  - "file-permissions"
+  - "ssh"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "ClockWork monitoring dashboard (Flask)"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web-based monitoring dashboard.
+      Enumerate endpoints to find debug pages leaking system information
+      and credentials.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "dirb"
+      - "gobuster"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan the target for open ports and enumerate the web application."
+      - level: 2
+        text: "Try common paths like /debug, /status, /admin on the web app."
+      - level: 3
+        text: "The /debug endpoint on port 8080 reveals SSH credentials and a hidden recon flag path."
+
+  - name: "Initial Access"
+    description: >-
+      Use discovered credentials to gain SSH access. Enumerate the system
+      for scheduled tasks and writable scripts.
+    tools_suggested:
+      - "ssh"
+      - "crontab"
+      - "ls"
+      - "cat"
+    flag:
+      type: "user"
+      path: "/home/monitor/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "SSH into the target using the credentials found on the debug page."
+      - level: 2
+        text: "Use monitor:Cl0ckW0rk_M0n!t0r to SSH in. Check your home directory for a flag."
+      - level: 3
+        text: "cat ~/user.txt for the user flag. Then look at /etc/crontab and find writable scripts."
+
+  - name: "Privilege Escalation"
+    description: >-
+      Discover the world-writable cron script running as root. Modify it
+      to copy the root flag to an accessible location or spawn a reverse
+      shell.
+    tools_suggested:
+      - "cat"
+      - "crontab"
+      - "ls"
+      - "linpeas"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Check /etc/crontab for jobs running as root. Look at the file permissions of the scripts."
+      - level: 2
+        text: "The script /opt/scripts/cleanup.sh is world-writable and runs as root every minute."
+      - level: 3
+        text: "Add 'cp /root/root.txt /tmp/root.txt && chmod 644 /tmp/root.txt' to cleanup.sh. Wait 60 seconds, then read /tmp/root.txt."
+
+par_time_minutes: 30
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

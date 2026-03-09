@@ -1,0 +1,119 @@
+name: "Writable /etc/passwd"
+slug: "writable-passwd"
+version: "1.0.0"
+difficulty: "medium"
+description: >-
+  A Linux system has a critically misconfigured /etc/passwd file that is
+  world-writable. A low-privileged user can add a new entry with UID 0,
+  effectively creating a second root account and gaining full control
+  of the system.
+briefing: |
+  MISSION BRIEFING - OPERATION OPEN BOOK
+  ========================================
+
+  Agent, we have identified a server belonging to OpenLedger Corp, a
+  financial data processing company. A recent server migration left
+  critical system files with incorrect permissions.
+
+  Specifically, /etc/passwd is world-writable. On Unix systems, this file
+  maps usernames to UIDs. If an attacker can write to it, they can add a
+  new user entry with UID 0 (root) and a known password hash, then
+  simply switch to that user with su.
+
+  A web-based ledger application on the target has an unauthenticated
+  backup endpoint that contains SSH credentials.
+
+  Your objectives:
+    1. Enumerate the web application and find the backup endpoint with credentials
+    2. SSH into the target as a regular user
+    3. Discover the writable /etc/passwd and add a root-level user to escalate
+
+  This is a critical misconfiguration, agent. In the real world, this
+  would be game over for the target.
+
+author: "howl-team"
+cves:
+  - "CWE-732"
+tags:
+  - "writable-passwd"
+  - "privilege-escalation"
+  - "linux"
+  - "file-permissions"
+  - "ssh"
+
+services:
+  - name: "web"
+    port: 8080
+    protocol: "tcp"
+    description: "OpenLedger financial application (Flask)"
+  - name: "ssh"
+    port: 22
+    protocol: "tcp"
+    description: "OpenSSH server"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target and discover the web application. Enumerate the
+      application for backup or admin endpoints that expose credentials.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "gobuster"
+    flag:
+      type: "stage"
+      path: "/var/www/.config/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan for open ports and explore the web application."
+      - level: 2
+        text: "Try directory enumeration on the web app. Look for /backup, /admin, /export."
+      - level: 3
+        text: "The /backup endpoint contains an exposed database dump with SSH credentials and a reference to the recon flag."
+
+  - name: "Initial Access"
+    description: >-
+      Use the discovered credentials to SSH into the target. Retrieve the
+      user flag and begin filesystem enumeration.
+    tools_suggested:
+      - "ssh"
+      - "cat"
+      - "ls"
+    flag:
+      type: "user"
+      path: "/home/ledger/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "SSH into the target using the credentials from the backup endpoint."
+      - level: 2
+        text: "Use ledger:0p3nL3dg3r_2024 to log in via SSH."
+      - level: 3
+        text: "Read ~/user.txt for the user flag. Then check file permissions: ls -la /etc/passwd"
+
+  - name: "Privilege Escalation"
+    description: >-
+      Discover that /etc/passwd is world-writable. Generate a password
+      hash and add a new user entry with UID 0 to gain root access.
+    tools_suggested:
+      - "openssl"
+      - "echo"
+      - "su"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "Check the permissions on /etc/passwd. It should not be writable by regular users."
+      - level: 2
+        text: "/etc/passwd is world-writable. Generate a password hash: openssl passwd -1 -salt xyz password123"
+      - level: 3
+        text: "Append a new root user: echo 'hacker:$(openssl passwd -1 -salt xyz password123):0:0::/root:/bin/bash' >> /etc/passwd then su hacker with password123"
+
+par_time_minutes: 30
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

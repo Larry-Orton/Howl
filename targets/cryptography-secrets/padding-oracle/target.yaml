@@ -1,0 +1,133 @@
+name: "Padding Oracle Attack"
+slug: "padding-oracle"
+version: "1.0.0"
+difficulty: "hard"
+description: >-
+  A web application using AES-CBC encryption for authentication
+  tokens that reveals padding errors in its responses. Exploit the
+  padding oracle to decrypt the admin token without knowing the key.
+briefing: |
+  MISSION BRIEFING - OPERATION BYTE FLIP
+  ========================================
+
+  Agent, SecureAuth Corp. runs an authentication service on port 8080
+  that uses AES-CBC encrypted tokens for session management. The
+  service returns different error messages for valid vs invalid padding,
+  creating a classic padding oracle vulnerability.
+
+  By carefully manipulating ciphertext bytes and observing the server
+  responses, you can decrypt any token byte-by-byte without knowing
+  the encryption key.
+
+  Your objectives:
+    1. Discover the encrypted token system and its endpoints
+    2. Identify the padding oracle by observing error responses
+    3. Decrypt the admin token using a padding oracle attack
+    4. Use the decrypted token to access the root flag
+
+  Good luck, agent. This one requires patience and precision.
+
+author: "howl-team"
+cves:
+  - "CWE-209"
+  - "CWE-327"
+tags:
+  - "padding-oracle"
+  - "aes-cbc"
+  - "cryptanalysis"
+  - "token-decryption"
+  - "cryptography"
+
+services:
+  - name: "webapp"
+    port: 8080
+    protocol: "tcp"
+    description: "SecureAuth Token Service (Flask)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Discover the web application and its authentication token
+      system. Identify the endpoints that handle encrypted tokens.
+    tools_suggested:
+      - "nmap"
+      - "gobuster"
+      - "curl"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/var/www/html/.secure/recon_flag.txt"
+    points: 50
+    hints:
+      - level: 1
+        text: "Scan the target and enumerate endpoints."
+      - level: 2
+        text: "The /api/token endpoint generates encrypted tokens and /api/verify validates them."
+      - level: 3
+        text: "Register and obtain a token, then examine the /api/verify response with modified tokens."
+
+  - name: "Oracle Identification"
+    description: >-
+      Confirm the padding oracle by sending malformed ciphertext and
+      observing that the server returns different errors for padding
+      failures vs. application-level errors.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+      - "python"
+    flag:
+      type: "user"
+      path: "/home/webapp/user.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Send a valid token vs. a token with one flipped byte and compare responses."
+      - level: 2
+        text: "Padding errors return HTTP 400 with 'Invalid padding'. Other errors return 403."
+      - level: 3
+        text: "The difference between 400 (padding error) and 403 (invalid data) confirms the oracle."
+
+  - name: "Token Decryption"
+    description: >-
+      Use the padding oracle to decrypt the admin token byte by byte.
+      Tools like padbuster or a custom Python script can automate this.
+    tools_suggested:
+      - "padbuster"
+      - "python"
+      - "padding-oracle-attacker"
+    flag:
+      type: "stage"
+      path: "/opt/secureauth/crypto_flag.txt"
+    points: 250
+    hints:
+      - level: 1
+        text: "Use padbuster or write a script that exploits the oracle one byte at a time."
+      - level: 2
+        text: "padbuster http://<target>:8080/api/verify <admin_token_hex> 16 -encoding 1"
+      - level: 3
+        text: "The admin token decrypts to JSON: {\"user\":\"admin\",\"role\":\"admin\"}. Forge this token."
+
+  - name: "Root Access"
+    description: >-
+      Use the decrypted or forged admin token to access the
+      admin panel and retrieve the root flag.
+    tools_suggested:
+      - "curl"
+      - "python"
+    flag:
+      type: "root"
+      path: "/root/root.txt"
+    points: 200
+    hints:
+      - level: 1
+        text: "Set the auth_token cookie to a valid admin token."
+      - level: 2
+        text: "You can also use the padding oracle to encrypt your own admin token."
+      - level: 3
+        text: "Access /admin with the forged/decrypted admin token as the auth_token cookie."
+
+par_time_minutes: 60
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true

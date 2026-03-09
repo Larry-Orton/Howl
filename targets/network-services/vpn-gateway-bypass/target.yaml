@@ -1,0 +1,188 @@
+name: "VPN Gateway Bypass"
+slug: "vpn-gateway-bypass"
+version: "1.0.0"
+difficulty: "elite"
+description: >-
+  A corporate VPN gateway with a web management portal. The OpenVPN
+  configuration has a certificate validation weakness, and the web
+  gateway is vulnerable to SSRF, allowing access to internal services
+  behind the VPN. Chain multiple vulnerabilities to reach the internal
+  admin panel and retrieve the root flag.
+briefing: |
+  MISSION BRIEFING - OPERATION TUNNEL VISION
+  ============================================
+
+  Agent, Obsidian Security Corp operates a VPN gateway that protects
+  their internal corporate network. The gateway runs OpenVPN on port 1194
+  and a web-based management portal on port 443 (HTTPS).
+
+  Our intelligence team has identified several potential weaknesses:
+
+    - The VPN configuration may have certificate validation issues that
+      allow unauthorized clients to connect or intercept traffic.
+    - The web management portal has a "connectivity checker" feature that
+      fetches URLs server-side, a potential SSRF vector.
+    - Behind the VPN gateway, an internal admin panel runs on a private
+      network that is not directly accessible from the outside.
+
+  Your objectives:
+    1. Discover and analyze the VPN and web services
+    2. Download and analyze the VPN configuration for weaknesses
+    3. Exploit the certificate validation weakness to extract secrets
+    4. Use the web portal SSRF to reach the internal network
+    5. Access the internal admin panel and retrieve the root flag
+
+  This is an elite-level engagement requiring you to chain multiple
+  vulnerabilities across different attack surfaces. The VPN configuration
+  analysis requires careful attention to detail, and the SSRF pivot
+  demands precision.
+
+  Good hunting, operator.
+
+author: "howl-team"
+cves:
+  - "CWE-295"
+  - "CWE-918"
+  - "CWE-522"
+tags:
+  - "vpn"
+  - "openvpn"
+  - "ssrf"
+  - "certificate-validation"
+  - "network-pivot"
+  - "network-services"
+  - "elite"
+
+services:
+  - name: "vpn"
+    port: 1194
+    protocol: "udp"
+    description: "OpenVPN gateway"
+  - name: "web"
+    port: 443
+    protocol: "tcp"
+    description: "VPN management web portal (HTTPS)"
+
+attack_chain:
+  - name: "Reconnaissance"
+    description: >-
+      Scan the target to discover the OpenVPN service on port 1194 and
+      the web management portal on port 443. The web portal is publicly
+      accessible and provides information about the VPN gateway, including
+      downloadable client configuration files.
+    tools_suggested:
+      - "nmap"
+      - "curl"
+      - "nikto"
+      - "sslscan"
+    flag:
+      type: "stage"
+      path: "/var/www/portal/.hidden/recon_flag.txt"
+    points: 75
+    hints:
+      - level: 1
+        text: "Scan for common ports. Check both TCP and UDP."
+      - level: 2
+        text: "The web portal on 443 has a public downloads section with VPN configuration files."
+      - level: 3
+        text: "Browse to /downloads on the web portal to find client.ovpn and other config files."
+
+  - name: "VPN Configuration Analysis"
+    description: >-
+      Download the VPN client configuration and analyze it for security
+      weaknesses. The configuration contains embedded certificates and
+      connection parameters that reveal information about the internal
+      network topology and potential misconfigurations.
+    tools_suggested:
+      - "curl"
+      - "openssl"
+      - "openvpn"
+    flag:
+      type: "user"
+      path: "/opt/obsidian/vpn/config_flag.txt"
+    points: 100
+    hints:
+      - level: 1
+        text: "Download the .ovpn file and examine its contents carefully."
+      - level: 2
+        text: "The config has verify-x509-name disabled and uses a weak cipher. Check the embedded CA certificate."
+      - level: 3
+        text: "The CA certificate's subject field contains an internal hostname. The config also references internal subnet 10.8.0.0/24."
+
+  - name: "Certificate Weakness Exploitation"
+    description: >-
+      Exploit the certificate validation weakness in the VPN configuration.
+      The server does not properly validate client certificates, and the
+      web portal exposes an API endpoint that leaks internal certificate
+      details and connection tokens.
+    tools_suggested:
+      - "openssl"
+      - "curl"
+      - "burpsuite"
+    flag:
+      type: "stage"
+      path: "/opt/obsidian/certs/cert_flag.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "The web portal has an /api/status endpoint that returns VPN server information."
+      - level: 2
+        text: "The /api/debug endpoint is accessible and leaks internal connection details and tokens."
+      - level: 3
+        text: "Access /api/debug to get an internal API token. This token authenticates requests to internal services."
+
+  - name: "SSRF to Internal Network"
+    description: >-
+      The web portal's connectivity checker at /check accepts a URL
+      parameter and fetches it server-side. Exploit this SSRF vulnerability
+      to probe the internal network (10.8.0.0/24) behind the VPN gateway
+      and discover internal services.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+      - "browser"
+    flag:
+      type: "stage"
+      path: "/opt/obsidian/internal/pivot_flag.txt"
+    points: 150
+    hints:
+      - level: 1
+        text: "The /check endpoint takes a 'url' parameter and fetches it from the server."
+      - level: 2
+        text: "Try fetching internal addresses: /check?url=http://10.8.0.1:8080"
+      - level: 3
+        text: "The internal admin panel is at 10.8.0.2:9090. Use the SSRF to reach it."
+
+  - name: "Internal Admin Panel"
+    description: >-
+      Use the SSRF combined with the leaked API token to authenticate to
+      the internal admin panel. The admin panel contains system management
+      tools and the root flag. Chain the token from stage 3 with the
+      SSRF from stage 4 to complete the attack.
+    tools_suggested:
+      - "curl"
+      - "burpsuite"
+    flag:
+      type: "root"
+      path: "/opt/obsidian/admin/root.txt"
+    points: 250
+    hints:
+      - level: 1
+        text: "The internal admin panel requires the API token in an Authorization header."
+      - level: 2
+        text: "Use the SSRF to send an authenticated request to the admin panel at 10.8.0.2:9090/admin/flag."
+      - level: 3
+        text: >-
+          Craft the SSRF payload: /check?url=http://10.8.0.2:9090/admin/flag
+          with the header X-API-Token set to the token from the /api/debug endpoint.
+
+par_time_minutes: 60
+
+docker:
+  compose_file: "docker-compose.yml"
+  build_required: true
+  networks:
+    - name: "vpn-external"
+      subnet: "172.30.0.0/24"
+    - name: "vpn-internal"
+      subnet: "10.8.0.0/24"

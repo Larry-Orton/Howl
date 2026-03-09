@@ -7,11 +7,12 @@ import yaml
 from howl.targets.models import Target
 
 
-def load_target(target_dir: Path) -> Target | None:
+def load_target(target_dir: Path, category: str = "") -> Target | None:
     """Load a target from a directory containing target.yaml.
 
     Args:
         target_dir: Path to the target directory.
+        category: Category slug inferred from parent directory name.
 
     Returns:
         A Target model instance, or None if no valid target.yaml found.
@@ -26,13 +27,17 @@ def load_target(target_dir: Path) -> Target | None:
     if not data:
         return None
 
+    # Inject category from directory structure if not in YAML
+    if category and not data.get("category"):
+        data["category"] = category
+
     return Target(**data)
 
 
 def load_targets_from_directory(base_dir: Path) -> list[Target]:
     """Load all targets from a base directory (recursively).
 
-    Expects structure: base_dir/<difficulty>/<target_slug>/target.yaml
+    Expects structure: base_dir/<category>/<target_slug>/target.yaml
 
     Args:
         base_dir: Path to the targets/ directory.
@@ -45,15 +50,17 @@ def load_targets_from_directory(base_dir: Path) -> list[Target]:
     if not base_dir.exists():
         return targets
 
-    for difficulty_dir in sorted(base_dir.iterdir()):
-        if not difficulty_dir.is_dir():
+    for category_dir in sorted(base_dir.iterdir()):
+        if not category_dir.is_dir():
             continue
 
-        for target_dir in sorted(difficulty_dir.iterdir()):
+        category_slug = category_dir.name
+
+        for target_dir in sorted(category_dir.iterdir()):
             if not target_dir.is_dir():
                 continue
 
-            target = load_target(target_dir)
+            target = load_target(target_dir, category=category_slug)
             if target:
                 targets.append(target)
 

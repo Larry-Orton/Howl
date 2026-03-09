@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  oauth-system:
+    build: .
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    restart: unless-stopped
+    labels:
+      - "howl.target=oauth-redirect-steal"
+      - "howl.difficulty=elite"
+    environment:
+      - FLASK_ENV=production
