@@ -897,3 +897,34 @@ def _interactive_ai_chat():
 def version():
     """Show Howl version."""
     console.print(f"  Howl v{__version__}")
+
+
+@app.command()
+def update(
+    check: bool = typer.Option(False, "--check", "-c", help="Only check for updates, don't install."),
+):
+    """Update Howl to the latest version.
+
+    Pulls the latest code from GitHub and re-installs dependencies.
+    Your progress, scores, and settings in ~/.howl/ are never touched.
+    """
+    from howl.updater import run_update, check_for_update, get_current_version
+
+    console.print(f"\n  [bold red]Howl[/bold red] v{get_current_version()}\n")
+
+    if check:
+        console.print("  Checking for updates...")
+        available, local_sha, remote_sha = check_for_update()
+        if available:
+            console.print(f"  [bold green]Update available![/bold green]  local={local_sha}  remote={remote_sha}")
+            console.print("  Run [cyan]howl update[/cyan] to install it.\n")
+        elif local_sha is None:
+            console.print("  [yellow]Cannot check — not installed from git.[/yellow]\n")
+        else:
+            console.print(f"  [green]✓[/green] You're on the latest version ({local_sha}).\n")
+        return
+
+    console.print("  [bold]Updating Howl...[/bold]\n")
+    success = run_update(verbose=True)
+    if not success:
+        raise typer.Exit(code=1)
