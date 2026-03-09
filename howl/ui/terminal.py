@@ -3,9 +3,8 @@
 Splits the terminal into a scrollable content area and a pinned bar:
 
     rows 1..scroll_end   : scrollable (Rich output, command results)
-    scroll_end+1          : red separator ──────
-    scroll_end+2          : [cmd] Label   [cmd] Label
-    scroll_end+3          : prompt_label >  (user types here)
+    scroll_end+1          : [cmd] Label   [cmd] Label
+    scroll_end+2          : prompt_label >  (user types here)
 
 Falls back to the standard draw_command_bar + Prompt.ask approach on
 terminals that don't support ANSI escape sequences.
@@ -19,7 +18,7 @@ import shutil
 class FixedBar:
     """Pinned bottom command bar using ANSI scrolling regions."""
 
-    BAR_HEIGHT = 3  # separator + commands + prompt
+    BAR_HEIGHT = 2  # commands + prompt
 
     def __init__(self, commands: list[tuple[str, str]], prompt_label: str = "howl"):
         self.commands = commands
@@ -92,19 +91,14 @@ class FixedBar:
     # ------------------------------------------------------------------
 
     def _render(self):
-        """Draw the three fixed rows below the scroll region."""
+        """Draw the two fixed rows below the scroll region."""
         cols, _, scroll_end = self._dims()
 
         sys.stdout.write("\033[s")  # save cursor position
 
-        # Row 1: red separator line
+        # Row 1: command shortcuts
         r1 = scroll_end + 1
         sys.stdout.write(f"\033[{r1};1H\033[2K")
-        sys.stdout.write(f"\033[91m{'─' * cols}\033[0m")
-
-        # Row 2: command shortcuts
-        r2 = scroll_end + 2
-        sys.stdout.write(f"\033[{r2};1H\033[2K")
         parts = []
         for shortcut, label in self.commands:
             parts.append(
@@ -112,9 +106,9 @@ class FixedBar:
             )
         sys.stdout.write(f"  {'   '.join(parts)}")
 
-        # Row 3: prompt prefix (input() fills the rest)
-        r3 = scroll_end + 3
-        sys.stdout.write(f"\033[{r3};1H\033[2K")
+        # Row 2: prompt prefix (input() fills the rest)
+        r2 = scroll_end + 2
+        sys.stdout.write(f"\033[{r2};1H\033[2K")
         sys.stdout.write(
             f"  \033[1;91m{self.prompt_label}\033[0m \033[91m>\033[0m "
         )
@@ -137,14 +131,14 @@ class FixedBar:
         self._render()
 
         # Position cursor on the prompt row, right after the prefix
-        r3 = scroll_end + 3
+        r2 = scroll_end + 2
         prefix_len = len(self.prompt_label) + 6  # "  label > "
-        sys.stdout.write(f"\033[{r3};{prefix_len}H\033[K")
+        sys.stdout.write(f"\033[{r2};{prefix_len}H\033[K")
 
         # Temporarily reset scroll region so long/wrapped input
         # doesn't corrupt the fixed bar rows
         sys.stdout.write("\033[r")
-        sys.stdout.write(f"\033[{r3};{prefix_len}H")
+        sys.stdout.write(f"\033[{r2};{prefix_len}H")
         sys.stdout.flush()
 
         try:
