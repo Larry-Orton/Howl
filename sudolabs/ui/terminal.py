@@ -138,6 +138,9 @@ class FixedBar:
 
         cols, _, scroll_end = self._dims()
 
+        # Ensure scroll region is locked before drawing
+        sys.stdout.write(f"\033[1;{scroll_end}r")
+
         # Draw / refresh the bar
         self._render()
 
@@ -145,12 +148,12 @@ class FixedBar:
         r2 = scroll_end + 2
         prefix_len = len(self.prompt_label) + 6  # "  label > "
         sys.stdout.write(f"\033[{r2};{prefix_len}H\033[K")
-
-        # Temporarily reset scroll region so long/wrapped input
-        # doesn't corrupt the fixed bar rows
-        sys.stdout.write("\033[r")
-        sys.stdout.write(f"\033[{r2};{prefix_len}H")
         sys.stdout.flush()
+
+        # NOTE: We keep the scroll region active during input().
+        # Previously we reset it (\033[r]) which caused Enter to
+        # scroll the entire screen, burning bar content into the
+        # scroll area.  Keeping the region locked prevents that.
 
         try:
             user_input = input()
@@ -164,11 +167,12 @@ class FixedBar:
         if extra:
             user_input = user_input + " " + " ".join(extra)
 
-        # Restore scroll region and aggressively re-render
+        # Re-assert scroll region (belt-and-suspenders)
         sys.stdout.write(f"\033[1;{scroll_end}r")
 
-        # Clear any visual corruption in the bar area
-        for row in range(scroll_end + 1, scroll_end + self.BAR_HEIGHT + 1):
+        # Clear the last scroll row AND bar rows — Enter may have
+        # pushed artifacts into scroll_end even with the region locked
+        for row in range(scroll_end, scroll_end + self.BAR_HEIGHT + 1):
             sys.stdout.write(f"\033[{row};1H\033[2K")
 
         self._render()
