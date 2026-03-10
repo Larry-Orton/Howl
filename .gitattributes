@@ -1,0 +1,11 @@
+# Normalize line endings across Windows / WSL / Linux
+* text=auto eol=lf
+
+# Ensure shell scripts always use LF
+*.sh text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
