@@ -73,6 +73,12 @@ def main(ctx: typer.Context):
             console.print("\n  [dim]Session ended.[/dim]\n")
             raise typer.Exit()
 
+        # Pause so the user can read output before the screen clears.
+        # Options 1 (Hunt) and 2 (HTB) enter their own interactive loops.
+        # Option 5 (Profile) has its own edit loop with Enter to go back.
+        if choice in ("3", "4", "6", "7", "8"):
+            Prompt.ask("\n  [dim]Press Enter to continue[/dim]", default="")
+
 
 def _select_category(registry: TargetRegistry) -> str | None:
     """Show category selection and return a category slug, 'all', or None."""
