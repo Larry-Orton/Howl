@@ -137,7 +137,7 @@ def htb_hunt_loop(session: HtbSession):
     command_history: list[dict] = []
 
     # Smart notes manager
-    from sudolabs.notes import NoteManager, get_auto_notes_enabled
+    from sudolabs.notes import NoteManager, get_auto_notes_enabled, notebook_menu
     notes_mgr = NoteManager(
         session_id=session.session_id,
         target_slug=session.target_slug,
@@ -154,7 +154,7 @@ def htb_hunt_loop(session: HtbSession):
         ("hint", "Get Hint"),
         ("scan", "Nmap"),
         ("milestone", "Progress"),
-        ("note", "Add Note"),
+        ("notebook", "Notes"),
         ("help", "All Cmds"),
     ]
 
@@ -248,31 +248,11 @@ def htb_hunt_loop(session: HtbSession):
                             f"({svc['protocol']}){ver}"
                         )
 
-            elif cmd == "note":
-                if not arg:
-                    arg = Prompt.ask("  [bold]Note[/bold]")
-                if arg:
-                    session.add_note(arg)  # Keep in-memory list for backward compat
-                    if ai.is_available():
-                        with console.status("[bold green]Formatting note...[/bold green]"):
-                            formatted = notes_mgr.add_user_note(
-                                arg, session.current_phase, session.elapsed_formatted
-                            )
-                        info_panel("Note Saved", formatted, border_style="green")
-                    else:
-                        notes_mgr.add_user_note(arg, session.current_phase, session.elapsed_formatted)
-                        console.print("  [green]Note saved.[/green]")
-
-            elif cmd == "notes":
-                session_notes = notes_mgr.get_session_notes()
-                if session_notes:
-                    console.print("\n  [bold]Session Notes:[/bold]")
-                    for i, n in enumerate(session_notes, 1):
-                        tag = "[dim][auto][/dim] " if n["note_type"] == "auto" else ""
-                        console.print(f"  {i}. {tag}{n['raw_text']}")
-                    console.print()
-                else:
-                    console.print("  [dim]No notes yet. Use 'note <text>' to add one.[/dim]")
+            elif cmd == "notebook":
+                # Update context so the menu has current stage/elapsed
+                notes_mgr._stage_name = session.current_phase
+                notes_mgr._elapsed = session.elapsed_formatted
+                notebook_menu(notes_mgr, ai)
 
             elif cmd == "done":
                 if Confirm.ask("  Mark this HTB session as complete?"):
@@ -301,8 +281,7 @@ def htb_hunt_loop(session: HtbSession):
                     "[bold]target[/bold]         Show target IP and services\n"
                     "[bold]status[/bold]         Refresh status header\n"
                     "[bold]clear[/bold]          Clear screen and redraw header\n"
-                    "[bold green]note[/bold green] <text>   Save an AI-enhanced pentest note\n"
-                    "[bold green]notes[/bold green]          View all saved notes for this session\n"
+                    "[bold green]notebook[/bold green]       Open notebook (add/view/append notes)\n"
                     "[bold]done[/bold]           Mark session complete\n"
                     "[bold]pause[/bold]          Pause session\n"
                     "[bold]abort[/bold]          Abandon session\n"

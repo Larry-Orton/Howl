@@ -314,3 +314,19 @@ def get_target_notes(target_slug: str) -> list[dict]:
             (target_slug,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+def append_to_note(note_id: int, additional_raw: str, additional_formatted: str):
+    """Append text to an existing note's raw_text and formatted_text."""
+    with get_db() as db:
+        row = db.execute(
+            "SELECT raw_text, formatted_text FROM notes WHERE id = ?",
+            (note_id,),
+        ).fetchone()
+        if row:
+            new_raw = row["raw_text"] + "\n" + additional_raw
+            new_fmt = row["formatted_text"] + "\n" + additional_formatted
+            db.execute(
+                "UPDATE notes SET raw_text = ?, formatted_text = ? WHERE id = ?",
+                (new_raw, new_fmt, note_id),
+            )

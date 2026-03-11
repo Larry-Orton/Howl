@@ -7,17 +7,27 @@ a global pentest playbook, and automatic event-driven notes.
 from datetime import datetime
 from pathlib import Path
 
+from rich.panel import Panel
 from rich.prompt import Prompt
 
-from sudolabs.config import (
-    SUDOLABS_HOME,
-    PROJECT_ROOT,
-    get_notes_dir,
-    set_notes_dir,
-    get_auto_notes,
-)
+from sudolabs.config import PROJECT_ROOT, get_auto_notes
 from sudolabs.db import queries
 from sudolabs.ui.theme import console
+
+
+# ---------------------------------------------------------------------------
+# Notes directory — auto-created in the project root, no prompts
+# ---------------------------------------------------------------------------
+
+NOTES_DIR = PROJECT_ROOT / "notes"
+
+
+def _ensure_notes_dir():
+    """Create PROJECT_ROOT/notes/ if it doesn't exist. No prompts."""
+    try:
+        NOTES_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -91,66 +101,130 @@ If no reusable technique applies, put NONE between the PLAYBOOK markers.
 Keep the note under 8 lines and the playbook entry under 5 lines. Be concise."""
 
 
-# ---------------------------------------------------------------------------
-# Helper: resolve notes directory
-# ---------------------------------------------------------------------------
-
-def _resolve_notes_dir() -> Path:
-    """Get or prompt for the notes directory, saving the choice to config.
-
-    Uses a safe default that works across WSL, Windows, and Linux.
-    Falls back gracefully if the chosen path is not writable.
-    """
-    configured = get_notes_dir()
-    if configured:
-        p = Path(configured)
-        # Validate the previously-saved path is still usable
-        try:
-            p.mkdir(parents=True, exist_ok=True)
-            return p
-        except OSError:
-            # Saved path is no longer valid — re-prompt
-            pass
-
-    # Build a reliable default: prefer SUDOLABS_HOME, fall back to project dir
-    candidates = [
-        SUDOLABS_HOME / "notes",
-        PROJECT_ROOT / "notes",
-    ]
-    default = str(candidates[0])
-    for candidate in candidates:
-        try:
-            candidate.mkdir(parents=True, exist_ok=True)
-            default = str(candidate)
-            break
-        except OSError:
-            continue
-
-    console.print()
-    choice = Prompt.ask(
-        "  [bold]Where should notes be saved?[/bold]",
-        default=default,
-    )
-    path = Path(choice.strip()) if choice.strip() else Path(default)
-
-    # Validate the user's choice
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        # If even the user's choice fails, use project root as last resort
-        path = PROJECT_ROOT / "notes"
-        try:
-            path.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            pass  # _ensure_files will handle this gracefully
-
-    set_notes_dir(str(path))
-    return path
-
-
 def get_auto_notes_enabled() -> bool:
     """Check if auto-notes are enabled."""
     return get_auto_notes()
+
+
+# ---------------------------------------------------------------------------
+# Interactive notebook menu
+# ---------------------------------------------------------------------------
+
+def notebook_menu(notes_mgr: "NoteManager", ai=None):
+    """Interactive notebook menu called from the hunt loop.
+
+    Displays a small Rich panel with [1] New Note / [2] View Notes.
+    Uses Prompt.ask() which renders in the scroll area above the FixedBar.
+    """
+    from sudolabs.ui.panels import info_panel
+
+    console.print(Panel(
+        "  [bold bright_red][1][/bold bright_red] [dim]New Note[/dim]\n"
+        "  [bold bright_red][2][/bold bright_red] [dim]View Notes[/dim]",
+        title="[bold]NOTEBOOK[/bold]",
+        border_style="bright_red",
+        padding=(0, 2),
+    ))
+
+    choice = Prompt.ask("  [bold]Select[/bold]", choices=["1", "2"], default="1")
+
+    if choice == "1":
+        _new_note_flow(notes_mgr, ai)
+    elif choice == "2":
+        _view_notes_flow(notes_mgr, ai)
+
+
+def _new_note_flow(notes_mgr: "NoteManager", ai=None):
+    """Prompt for text, AI-enhance it, save as a new note."""
+    from sudolabs.ui.panels import info_panel
+
+    text = Prompt.ask("  [bold]Note[/bold]")
+    if not text or not text.strip():
+        console.print("  [dim]No note entered.[/dim]")
+        return
+
+    text = text.strip()
+    stage_name = "Unknown"
+    elapsed = "00:00:00"
+
+    # Try to get stage/elapsed from the manager's context
+    if hasattr(notes_mgr, "_stage_name"):
+        stage_name = notes_mgr._stage_name
+    if hasattr(notes_mgr, "_elapsed"):
+        elapsed = notes_mgr._elapsed
+
+    if ai and ai.is_available():
+        with console.status("[bold green]Formatting note...[/bold green]"):
+            formatted = notes_mgr.add_user_note(text, stage_name, elapsed)
+        info_panel("Note Saved", formatted, border_style="green")
+    else:
+        notes_mgr.add_user_note(text, stage_name, elapsed)
+        console.print("  [green]Note saved.[/green]")
+
+
+def _view_notes_flow(notes_mgr: "NoteManager", ai=None):
+    """List session notes, let user pick one to view, optionally append."""
+    from sudolabs.ui.panels import info_panel
+
+    notes = notes_mgr.get_session_notes()
+    if not notes:
+        console.print("  [dim]No notes yet. Use option [1] to create one.[/dim]")
+        return
+
+    # Display numbered list with timestamps and preview
+    console.print("\n  [bold]Session Notes:[/bold]")
+    for i, note in enumerate(notes, 1):
+        tag = "[dim][auto][/dim] " if note["note_type"] == "auto" else ""
+        preview = note["raw_text"][:80]
+        if len(note["raw_text"]) > 80:
+            preview += "..."
+        console.print(f"  [bold bright_red][{i}][/bold bright_red] {tag}{preview}")
+
+    console.print(f"  [bold bright_red][0][/bold bright_red] [dim]Back[/dim]")
+
+    selection = Prompt.ask("  [bold]View note #[/bold]", default="0")
+
+    if selection == "0":
+        return
+
+    try:
+        idx = int(selection) - 1
+        if idx < 0 or idx >= len(notes):
+            console.print("  [red]Invalid selection.[/red]")
+            return
+    except ValueError:
+        console.print("  [red]Invalid selection.[/red]")
+        return
+
+    selected = notes[idx]
+
+    # Display the full note content
+    display_text = selected["formatted_text"] or selected["raw_text"]
+    timestamp = selected.get("created_at", "")
+    console.print(Panel(
+        display_text,
+        title=f"[bold]Note #{idx + 1}[/bold] [dim]{timestamp}[/dim]",
+        border_style="cyan",
+        padding=(1, 2),
+    ))
+
+    # Offer to append more text
+    append_text = Prompt.ask(
+        "  [bold]Add to this note[/bold] [dim](Enter to skip)[/dim]",
+        default="",
+    )
+    if append_text.strip():
+        stage_name = "Unknown"
+        elapsed = "00:00:00"
+        if hasattr(notes_mgr, "_stage_name"):
+            stage_name = notes_mgr._stage_name
+        if hasattr(notes_mgr, "_elapsed"):
+            elapsed = notes_mgr._elapsed
+
+        notes_mgr.append_note(
+            selected["id"], append_text.strip(), stage_name, elapsed
+        )
+        console.print("  [green]Note updated.[/green]")
 
 
 # ---------------------------------------------------------------------------
@@ -184,22 +258,27 @@ class NoteManager:
         self.ai = ai  # AIHelper instance (can be None)
         self._files_ok = False  # Track whether .md file I/O works
 
+        # Mutable context — updated by the hunt loop before notebook_menu
+        self._stage_name = "Unknown"
+        self._elapsed = "00:00:00"
+
+        # Set up file paths using the fixed NOTES_DIR
+        self.notes_dir = NOTES_DIR
+        safe_slug = target_slug.replace(":", "-").replace(" ", "-")
+        self.target_file = self.notes_dir / f"{safe_slug}.md"
+        self.playbook_file = self.notes_dir / "playbook.md"
+
         try:
-            self.notes_dir = _resolve_notes_dir()
-            safe_slug = target_slug.replace(":", "-").replace(" ", "-")
-            self.target_file = self.notes_dir / f"{safe_slug}.md"
-            self.playbook_file = self.notes_dir / "playbook.md"
             self._ensure_files()
         except Exception:
             # Notes directory is unusable — still save to DB, skip .md files
-            self.notes_dir = None
-            self.target_file = None
-            self.playbook_file = None
+            pass
 
     # ── File initialization ────────────────────────────────
 
     def _ensure_files(self):
         """Create the notes directory and initialize files if needed."""
+        _ensure_notes_dir()
         self.notes_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize target notes file with header
@@ -256,6 +335,36 @@ class NoteManager:
         self._save_to_db(raw_text, formatted, "user", stage_name)
 
         return formatted
+
+    # ── Append to existing note ─────────────────────────────
+
+    def append_note(
+        self, note_id: int, additional_text: str, stage_name: str, elapsed: str
+    ):
+        """Append text to an existing note (DB + .md file)."""
+        formatted = additional_text
+
+        # AI-enhance the appended text if available
+        if self.ai and self.ai.is_available():
+            try:
+                formatted, playbook_entry = self._ai_format_note(
+                    additional_text, stage_name, elapsed
+                )
+                if playbook_entry:
+                    self._append_to_playbook(playbook_entry)
+            except Exception:
+                formatted = f"- {additional_text}\n"
+        else:
+            formatted = f"- {additional_text}\n"
+
+        # Update DB
+        try:
+            queries.append_to_note(note_id, additional_text, formatted)
+        except Exception:
+            pass
+
+        # Also append to the .md file
+        self._append_to_target_file(formatted)
 
     # ── Auto-notes (template-based, no API) ────────────────
 

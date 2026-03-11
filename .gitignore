@@ -17,6 +17,9 @@ env/
 .mypy_cache/
 .claude/
 
+# User notes (personal data)
+notes/
+
 # Scan / temp files
 initial_scan.txt
 

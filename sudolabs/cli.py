@@ -407,7 +407,7 @@ def _hunt_loop(session, container_info: dict | None):
         target_ip = container_info.get("ip", "127.0.0.1")
 
     # Smart notes manager
-    from sudolabs.notes import NoteManager, get_auto_notes_enabled
+    from sudolabs.notes import NoteManager, get_auto_notes_enabled, notebook_menu
     notes_mgr = NoteManager(
         session_id=session.session_id,
         target_slug=target.slug,
@@ -423,7 +423,7 @@ def _hunt_loop(session, container_info: dict | None):
         ("hint", "Get Hint"),
         ("submit", "Flag"),
         ("info", "Progress"),
-        ("note", "Notes"),
+        ("notebook", "Notes"),
         ("help", "All Cmds"),
     ]
 
@@ -590,29 +590,13 @@ def _hunt_loop(session, container_info: dict | None):
                 for svc in target.services:
                     console.print(f"  [bold]{svc.name}:[/bold] {target_ip}:{svc.port} ({svc.protocol})")
 
-            elif cmd == "note":
-                if not arg:
-                    arg = Prompt.ask("  [bold]Note[/bold]")
-                if arg:
-                    stage_name = session.current_stage_obj.name if session.current_stage_obj else "Unknown"
-                    if ai.is_available():
-                        with console.status("[bold green]Formatting note...[/bold green]"):
-                            formatted = notes_mgr.add_user_note(arg, stage_name, session.elapsed_formatted)
-                        info_panel("Note Saved", formatted, border_style="green")
-                    else:
-                        notes_mgr.add_user_note(arg, stage_name, session.elapsed_formatted)
-                        console.print("  [green]Note saved.[/green]")
-
-            elif cmd == "notes":
-                session_notes = notes_mgr.get_session_notes()
-                if session_notes:
-                    console.print("\n  [bold]Session Notes:[/bold]")
-                    for i, n in enumerate(session_notes, 1):
-                        tag = "[dim][auto][/dim] " if n["note_type"] == "auto" else ""
-                        console.print(f"  {i}. {tag}{n['raw_text']}")
-                    console.print()
-                else:
-                    console.print("  [dim]No notes yet. Use 'note <text>' to add one.[/dim]")
+            elif cmd == "notebook":
+                # Update context so the menu has current stage/elapsed
+                notes_mgr._stage_name = (
+                    session.current_stage_obj.name if session.current_stage_obj else "Unknown"
+                )
+                notes_mgr._elapsed = session.elapsed_formatted
+                notebook_menu(notes_mgr, ai)
 
             elif cmd == "flag":
                 # Show the current flag (for development/testing only)
@@ -638,8 +622,7 @@ def _hunt_loop(session, container_info: dict | None):
                     "[bold blue]ask[/bold blue] <question> [bold]Ask the AI anything[/bold] (e.g. 'ask what nmap command should I run')\n"
                     "[bold]hint[/bold] [1-3]     Get a hint (1=nudge, 2=direction, 3=walkthrough)\n"
                     "[bold]submit[/bold] <flag>  Submit a flag for the current stage\n"
-                    "[bold green]note[/bold green] <text>   Save an AI-enhanced pentest note\n"
-                    "[bold green]notes[/bold green]          View all saved notes for this session\n"
+                    "[bold green]notebook[/bold green]       Open notebook (add/view/append notes)\n"
                     "[bold]info[/bold]           Show current stage info and attack chain\n"
                     "[bold]target[/bold]         Show target IP and ports\n"
                     "[bold]status[/bold]         Refresh status header\n"
@@ -1005,33 +988,27 @@ def _run_doctor():
 @app.command()
 def config(
     set_api_key_val: str = typer.Option(None, "--set-api-key", help="Set Anthropic API key"),
-    notes_dir: str = typer.Option(None, "--notes-dir", help="Set notes directory path"),
     auto_notes: bool = typer.Option(None, "--auto-notes/--no-auto-notes", help="Toggle auto-notes"),
 ):
     """View or edit SudoLabs configuration."""
     _ensure_db()
-    _show_config(set_api_key_val, notes_dir, auto_notes)
+    _show_config(set_api_key_val, auto_notes)
 
 
 def _show_config(
     new_api_key: str | None = None,
-    new_notes_dir: str | None = None,
     auto_notes_toggle: bool | None = None,
 ):
     """Internal config handler."""
     from sudolabs.config import (
         SUDOLABS_HOME, DB_FILE, TARGETS_DIR,
-        get_notes_dir, set_notes_dir, get_auto_notes, set_auto_notes,
+        get_auto_notes, set_auto_notes,
     )
+    from sudolabs.notes import NOTES_DIR
 
     if new_api_key:
         set_api_key(new_api_key)
         console.print(f"  [green]API key saved.[/green]")
-        return
-
-    if new_notes_dir:
-        set_notes_dir(new_notes_dir)
-        console.print(f"  [green]Notes directory set to: {new_notes_dir}[/green]")
         return
 
     if auto_notes_toggle is not None:
@@ -1052,9 +1029,7 @@ def _show_config(
         console.print(f"  API Key:     [yellow]Not set[/yellow]")
 
     console.print(f"  Username:    {get_username()}")
-
-    nd = get_notes_dir()
-    console.print(f"  Notes Dir:   {nd or '[yellow]Not set (will prompt on first use)[/yellow]'}")
+    console.print(f"  Notes Dir:   {NOTES_DIR}")
     console.print(f"  Auto Notes:  {'[green]enabled[/green]' if get_auto_notes() else '[yellow]disabled[/yellow]'}")
     console.print()
 
